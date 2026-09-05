@@ -1,0 +1,13 @@
+.DS_Store
+Build/
+
+# Local backup of the nested Xcode-created git repository.
+CatFocus/.git-disabled-backup/
+
+# Xcode user-specific state.
+xcuserdata/
+*.xcuserstate
+
+# Swift Package Manager / Xcode build products.
+.build/
+DerivedData/
