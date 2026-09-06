@@ -20,14 +20,14 @@ struct FocusHomeView: View {
     private let homeCatRotationTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .cfEntrance(offset: -4)
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                header
+                    .cfEntrance(offset: -4)
 
-            Color.clear
-                .frame(height: CFMascotLayout.topSpacing)
+                Color.clear
+                    .frame(height: CFMascotLayout.topSpacing)
 
-            VStack(spacing: CFSpacing.xxl) {
                 CFMascotStage {
                     CFCatScene(
                         asset: homeCatRotation.current.asset,
@@ -51,28 +51,22 @@ struct FocusHomeView: View {
                 }
                 .cfEntrance(delay: 0.08, offset: 12)
 
-                durationPill
-                    .padding(.top, CFSpacing.lg)
-                    .cfEntrance(delay: 0.16)
+                Spacer(minLength: CFSpacing.lg)
+
+                sessionControlPanel
+                    .padding(.horizontal, CFButtonLayout.primaryHorizontalInset)
+                    .padding(.bottom, CFMascotLayout.homePrimaryActionBottomPadding)
+                    .offset(y: -CFMascotLayout.homeControlsLift)
+                    .cfEntrance(delay: 0.16, offset: 12)
             }
-
-            Spacer(minLength: CFSpacing.section)
-
-            CFPrimaryButton(title: "Start", variant: .cloud, action: onStart)
-                .padding(.horizontal, CFButtonLayout.primaryHorizontalInset)
-                .padding(.bottom, CFMascotLayout.homePrimaryActionBottomPadding)
-                .cfEntrance(delay: 0.24, offset: 12)
-
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            .background(CFColor.backgroundPrimary)
         }
-        .background(CFColor.backgroundPrimary)
         .onAppear {
             homeCatRotation.refreshIfNeeded()
         }
         .onReceive(homeCatRotationTimer) { now in
             homeCatRotation.refreshIfNeeded(now: now)
-        }
-        .overlay(alignment: .bottom) {
-            CFBottomTabBar(selectedTab: .focus, onSelect: onTabSelected, variant: .floating)
         }
     }
 
@@ -88,25 +82,43 @@ struct FocusHomeView: View {
         .padding(.top, CFTabScreenLayout.headerTopPadding)
     }
 
-    private var durationPill: some View {
-        Button(action: onPreset) {
-            HStack(spacing: CFSpacing.md) {
-                CFIcon.hourglass.image
-                    .font(.system(size: 16, weight: .bold))
-                Text(String(format: "%02d:00", state.selectedDurationMinutes))
-                    .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit())
-                CFIcon.play.image
-                    .font(.system(size: 12, weight: .bold))
+    private var sessionControlPanel: some View {
+        VStack(spacing: 0) {
+            Button(action: onPreset) {
+                HStack(spacing: CFSpacing.sm) {
+                    CFIcon.hourglass.image
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(CFColor.textTertiary)
+
+                    Text("Focus duration")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CFColor.textSecondary)
+
+                    Spacer(minLength: CFSpacing.sm)
+
+                    Text("\(state.selectedDurationMinutes) min")
+                        .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(CFColor.textPrimary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(CFColor.textTertiary)
+                }
+                .padding(.horizontal, CFSpacing.lg)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(CFColor.textPrimary)
-            .padding(.horizontal, 14)
-            .frame(height: 44)
-            .background(CFColor.surfaceSoft)
-            .clipShape(Capsule())
-            .cfShadow(CFCloudLayer.cardShadow)
+            .buttonStyle(CFPressableStyle())
+            .accessibilityLabel("Focus duration")
+            .accessibilityValue("\(state.selectedDurationMinutes) minutes")
+            .accessibilityHint("Opens training preset settings")
+
+            CFPrimaryButton(title: "Start", variant: .cloud, action: onStart)
         }
-        .buttonStyle(CFPressableStyle())
-        .accessibilityLabel("Focus duration \(state.selectedDurationMinutes) minutes")
+        .background {
+            RoundedRectangle(cornerRadius: CFRadius.sheet, style: .continuous)
+                .fill(CFColor.surfaceWhisper)
+        }
     }
 }
 
@@ -136,19 +148,32 @@ struct CFBottomTabBar: View {
     var selectedTab: CFAppTab
     var onSelect: (CFAppTab) -> Void = { _ in }
     var variant: Variant = .standard
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: variant == .floating ? 16 : 30) {
-            ForEach(CFAppTab.allCases, id: \.self) { tab in
-                CFBottomTabItem(tab: tab, isSelected: tab == selectedTab, isFloating: variant == .floating) {
-                    onSelect(tab)
+        ZStack(alignment: .leading) {
+            if variant == .floating {
+                Capsule()
+                    .fill(CFColor.surfaceSelection)
+                    .frame(width: 54, height: 40)
+                    .offset(x: floatingSelectionOffset)
+                    .animation(
+                        reduceMotion ? nil : CFMotionCurve.componentTransition,
+                        value: floatingSelectionOffset
+                    )
+            }
+
+            HStack(spacing: variant == .floating ? CFSpacing.xs : 30) {
+                ForEach(CFAppTab.allCases, id: \.self) { tab in
+                    CFBottomTabItem(tab: tab, isSelected: tab == selectedTab, isFloating: variant == .floating) {
+                        onSelect(tab)
+                    }
                 }
             }
         }
         .frame(maxWidth: variant == .floating ? nil : .infinity)
-        .padding(.horizontal, variant == .floating ? CFSpacing.md : CFTabScreenLayout.horizontalPadding)
-        .padding(.top, variant == .floating ? 10 : CFSpacing.sm)
-        .padding(.bottom, variant == .floating ? 10 : CFSpacing.sm)
+        .padding(.horizontal, variant == .floating ? CFSpacing.sm : CFTabScreenLayout.horizontalPadding)
+        .padding(.vertical, CFSpacing.sm)
         .background {
             if variant == .floating {
                 RoundedRectangle(cornerRadius: CFRadius.pill, style: .continuous)
@@ -159,6 +184,11 @@ struct CFBottomTabBar: View {
         .padding(.horizontal, variant == .floating ? CFSpacing.lg : 0)
         .padding(.bottom, variant == .floating ? CFSpacing.md : 0)
     }
+
+    private var floatingSelectionOffset: CGFloat {
+        let selectedIndex = CFAppTab.allCases.firstIndex(of: selectedTab) ?? 0
+        return CGFloat(selectedIndex) * (58 + CFSpacing.xs)
+    }
 }
 
 private struct CFBottomTabItem: View {
@@ -166,31 +196,25 @@ private struct CFBottomTabItem: View {
     var isSelected: Bool
     var isFloating: Bool
     var action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
-                    VStack(spacing: 0) {
+            VStack(spacing: 0) {
                 tab.icon.image
                     .font(.system(size: 17, weight: .bold))
 
-                        if !isFloating {
-                        Text(tab.rawValue)
+                if !isFloating {
+                    Text(tab.rawValue)
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        }
-            }
-            .foregroundStyle(isSelected ? CFColor.textPrimary : CFColor.textTertiary)
-            .frame(width: isFloating ? 42 : 68)
-            .frame(minHeight: isFloating ? 42 : 48)
-            .contentShape(Rectangle())
-            .background {
-                if isFloating && isSelected {
-                    Circle()
-                        .fill(CFColor.surfaceSelection)
-                        .frame(width: 36, height: 36)
                 }
             }
-            .scaleEffect(isSelected ? 1.04 : 1)
-            .animation(CFMotionCurve.instantFeedback, value: isSelected)
+            .foregroundStyle(isSelected ? CFColor.textPrimary : CFColor.textTertiary)
+            .frame(width: isFloating ? 58 : 68)
+            .frame(height: isFloating ? 44 : 48)
+            .contentShape(Rectangle())
+            .scaleEffect(isSelected && !reduceMotion ? 1.04 : 1)
+            .animation(reduceMotion ? nil : CFMotionCurve.instantFeedback, value: isSelected)
         }
         .buttonStyle(CFPressableStyle())
         .accessibilityLabel("\(tab.rawValue) tab")

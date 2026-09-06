@@ -25,17 +25,20 @@ struct AppFlowView: View {
     @State private var debugOnboardingRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_ONBOARDING")
     @State private var debugPretrainRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PRETRAIN")
     @State private var debugContractRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_CONTRACT")
+    @State private var debugNotificationsRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_NOTIFICATIONS")
 
     var body: some View {
-        Group {
-            if shouldShowOnboarding {
-                OnboardingFlowView {
-                    hasCompletedOnboarding = true
-                    debugOnboardingRequested = false
-                    debugPretrainRequested = false
-                    debugContractRequested = false
-                }
-            } else if route == .training {
+        GeometryReader { proxy in
+            Group {
+                if shouldShowOnboarding {
+                    OnboardingFlowView {
+                        hasCompletedOnboarding = true
+                        debugOnboardingRequested = false
+                        debugPretrainRequested = false
+                        debugContractRequested = false
+                        debugNotificationsRequested = false
+                    }
+                } else if route == .training {
                 TrainingView(
                     selectedDurationMinutes: $selectedDurationMinutes,
                     shortBreakMinutes: $shortBreakMinutes,
@@ -110,13 +113,23 @@ struct AppFlowView: View {
                 } onResetStats: {
                     trainingRecordsData = Data()
                 } onPremiumRequested: {
-                    // Settings only reflects entitlement state. The sole
-                    // Paywall entry point is Home > Start.
-                    route = nil
-                    selectedTab = .focus
+                    paywallRequest = CFPaywallRequest(source: .startTraining)
                 }
             } else {
-                tabContent
+                    tabContent
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .overlay(alignment: .bottom) {
+                if !shouldShowOnboarding && route == nil {
+                    CFBottomTabBar(
+                        selectedTab: selectedTab,
+                        onSelect: { tab in
+                            selectedTab = tab
+                        },
+                        variant: .floating
+                    )
+                }
             }
         }
         .id(routeIdentity)
@@ -215,7 +228,7 @@ struct AppFlowView: View {
 
     private var routeIdentity: String {
         if shouldShowOnboarding { return "onboarding" }
-        guard let route else { return "home-\(selectedTab.rawValue)" }
+        guard let route else { return "main-tabs" }
 
         switch route {
         case .training: return "training"
@@ -241,6 +254,7 @@ struct AppFlowView: View {
                 || debugPretrainRequested
                 || debugContractRequested
                 || debugOnboardingRequested
+                || debugNotificationsRequested
         ) && !ProcessInfo.processInfo.arguments.contains("UITEST_SKIP_ONBOARDING")
     }
 
@@ -319,7 +333,7 @@ struct AppFlowView: View {
         case .focus:
             FocusHomeView(
                 state: FocusHomeState(
-                    cat: .default,
+                    cat: currentCatProfile,
                     selectedDurationMinutes: selectedDurationMinutes
                 ),
                 onStart: {

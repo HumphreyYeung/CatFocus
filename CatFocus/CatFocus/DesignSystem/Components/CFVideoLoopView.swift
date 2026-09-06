@@ -2,19 +2,34 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
+enum CFVideoScalingMode {
+    case fit
+    case fill
+}
+
 /// Plays one bundled mascot video inside a fixed canvas and falls back to its poster.
 struct CFVideoLoopView: View {
     var videoName: String
     var posterName: String
     var size: CGSize
+    var scalingMode: CFVideoScalingMode
+    var startDelay: TimeInterval
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: CFVideoLoopModel
 
-    init(videoName: String, posterName: String, size: CGSize) {
+    init(
+        videoName: String,
+        posterName: String,
+        size: CGSize,
+        scalingMode: CFVideoScalingMode = .fit,
+        startDelay: TimeInterval = 0
+    ) {
         self.videoName = videoName
         self.posterName = posterName
         self.size = size
+        self.scalingMode = scalingMode
+        self.startDelay = startDelay
         _model = StateObject(wrappedValue: CFVideoLoopModel(videoName: videoName))
     }
 
@@ -23,7 +38,7 @@ struct CFVideoLoopView: View {
             poster
 
             if !reduceMotion, let player = model.player {
-                CFVideoPlayerView(player: player) {
+                CFVideoPlayerView(player: player, scalingMode: scalingMode) {
                     model.markFirstFrameReady()
                 }
                 .frame(width: size.width, height: size.height)
@@ -42,6 +57,10 @@ struct CFVideoLoopView: View {
         .clipped()
         .task {
             guard !reduceMotion else { return }
+            if startDelay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(startDelay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
             model.start()
         }
         .onChange(of: reduceMotion) { _, isEnabled in
@@ -62,7 +81,7 @@ struct CFVideoLoopView: View {
             if UIImage(named: posterName) != nil {
                 Image(posterName)
                     .resizable()
-                    .scaledToFit()
+                    .aspectRatio(contentMode: scalingMode == .fill ? .fill : .fit)
             } else {
                 Color.white
             }
@@ -156,17 +175,20 @@ private final class CFVideoLoopModel: ObservableObject {
 
 private struct CFVideoPlayerView: UIViewRepresentable {
     var player: AVPlayer
+    var scalingMode: CFVideoScalingMode
     var onReadyForDisplay: () -> Void
 
     func makeUIView(context: Context) -> CFVideoPlayerContainerView {
         let view = CFVideoPlayerContainerView()
         view.onReadyForDisplay = onReadyForDisplay
+        view.scalingMode = scalingMode
         view.player = player
         return view
     }
 
     func updateUIView(_ uiView: CFVideoPlayerContainerView, context: Context) {
         uiView.onReadyForDisplay = onReadyForDisplay
+        uiView.scalingMode = scalingMode
         uiView.player = player
     }
 }
@@ -176,6 +198,12 @@ private final class CFVideoPlayerContainerView: UIView {
 
     var onReadyForDisplay: (() -> Void)?
     private var readyObservation: NSKeyValueObservation?
+
+    var scalingMode: CFVideoScalingMode = .fit {
+        didSet {
+            updateVideoGravity()
+        }
+    }
 
     var player: AVPlayer? {
         get { (layer as? AVPlayerLayer)?.player }
@@ -187,7 +215,7 @@ private final class CFVideoPlayerContainerView: UIView {
             readyObservation?.invalidate()
             readyObservation = nil
             playerLayer.player = newValue
-            playerLayer.videoGravity = .resizeAspect
+            updateVideoGravity()
             playerLayer.isOpaque = true
             playerLayer.backgroundColor = UIColor.white.cgColor
             guard newValue != nil else { return }
@@ -198,6 +226,11 @@ private final class CFVideoPlayerContainerView: UIView {
                 }
             }
         }
+    }
+
+    private func updateVideoGravity() {
+        guard let playerLayer = layer as? AVPlayerLayer else { return }
+        playerLayer.videoGravity = scalingMode == .fill ? .resizeAspectFill : .resizeAspect
     }
 
     override init(frame: CGRect) {

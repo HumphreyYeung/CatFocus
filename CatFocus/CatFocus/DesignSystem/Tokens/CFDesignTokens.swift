@@ -5,6 +5,7 @@ enum CFColor {
     static let backgroundDimmed = Color.black.opacity(0.58)
     static let surfacePrimary = Color.white
     static let surfaceSoft = Color(red: 0.965, green: 0.965, blue: 0.975)
+    static let surfaceWhisper = Color(red: 0.988, green: 0.988, blue: 0.992)
     static let surfaceSelection = Color(red: 0.905, green: 0.905, blue: 0.925)
     static let surfaceSelected = Color(red: 0.17, green: 0.17, blue: 0.19)
     static let surfaceElevated = Color.white
@@ -22,6 +23,7 @@ enum CFColor {
     static let accentHealth = Color(red: 0.12, green: 0.62, blue: 0.30)
     static let accentSuccess = Color(red: 0.08, green: 0.55, blue: 0.24)
     static let accentDanger = Color(red: 1.00, green: 0.22, blue: 0.20)
+    static let accentTrial = Color(red: 1.00, green: 0.34, blue: 0.18)
     static let accentReward = Color(red: 0.17, green: 0.17, blue: 0.19)
 }
 
@@ -108,6 +110,7 @@ enum CFMascotLayout {
     static let topSpacing: CGFloat = 72
     static let focusMediaTopPadding: CGFloat = 48
     static let homePrimaryActionBottomPadding: CGFloat = 136
+    static let homeControlsLift: CGFloat = CFSpacing.lg
 }
 
 enum CFButtonLayout {

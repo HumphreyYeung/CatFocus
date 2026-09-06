@@ -26,9 +26,6 @@ struct StatsView: View {
 
         }
         .background(CFColor.backgroundPrimary)
-        .overlay(alignment: .bottom) {
-            CFBottomTabBar(selectedTab: .stats, onSelect: onTabSelected, variant: .floating)
-        }
     }
 
     private var header: some View {

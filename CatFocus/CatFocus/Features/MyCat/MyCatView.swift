@@ -40,9 +40,6 @@ struct MyCatView: View {
 
         }
         .background(CFColor.backgroundPrimary)
-        .overlay(alignment: .bottom) {
-            CFBottomTabBar(selectedTab: .myCat, onSelect: onTabSelected, variant: .floating)
-        }
     }
 
     private var header: some View {

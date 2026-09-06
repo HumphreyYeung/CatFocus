@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PencilKit
+import UserNotifications
 
 struct OnboardingFlowView: View {
     var onFinish: () -> Void
@@ -10,16 +11,21 @@ struct OnboardingFlowView: View {
         let arguments = ProcessInfo.processInfo.arguments
         let debugOptions = arguments.contains("UITEST_OPEN_ONBOARDING_OPTIONS")
             || UserDefaults.standard.bool(forKey: "debugOnboardingOptions")
+        if arguments.contains("UITEST_OPEN_NOTIFICATIONS") {
+            return .notifications
+        }
         return debugOptions ? .problems : .greetingOne
     }()
     @State private var userName = ""
     @State private var selectedProblem: OnboardingChoice?
     @State private var selectedGoal: OnboardingChoice?
+    @State private var selectedReminderTime: OnboardingReminderTime?
 
     @AppStorage("onboardingName") private var savedName = ""
     @AppStorage("onboardingProblemID") private var savedProblemID = ""
     @AppStorage("onboardingGoalID") private var savedGoalID = ""
     @AppStorage("onboardingSignatureData") private var savedSignatureData = Data()
+    @AppStorage("onboardingReminderTimeID") private var savedReminderTimeID = ""
 
     var body: some View {
         ZStack {
@@ -93,7 +99,11 @@ struct OnboardingFlowView: View {
                 }
             case .contract:
                 OnboardingContractScreen(signatureData: $savedSignatureData) {
-                    finishOnboarding()
+                    go(to: .notifications)
+                }
+            case .notifications:
+                OnboardingReminderScreen(selectedTime: $selectedReminderTime) {
+                    requestNotificationPermissionAndFinish()
                 }
             }
         }
@@ -122,6 +132,8 @@ struct OnboardingFlowView: View {
                 step = .trial
             } else if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_CONTRACT") {
                 step = .contract
+            } else if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_NOTIFICATIONS") {
+                step = .notifications
             }
         }
         #endif
@@ -147,6 +159,8 @@ struct OnboardingFlowView: View {
             "trial-finish"
         case .contract:
             "contract"
+        case .notifications:
+            "notifications"
         }
     }
 
@@ -219,6 +233,8 @@ struct OnboardingFlowView: View {
             go(to: .trial)
         case .contract:
             go(to: .trialFinish)
+        case .notifications:
+            go(to: .contract)
         default:
             break
         }
@@ -228,7 +244,20 @@ struct OnboardingFlowView: View {
         savedName = displayName
         savedProblemID = selectedProblem?.id ?? ""
         savedGoalID = selectedGoal?.id ?? ""
+        savedReminderTimeID = selectedReminderTime?.rawValue ?? ""
         onFinish()
+    }
+
+    private func requestNotificationPermissionAndFinish() {
+        savedName = displayName
+        savedProblemID = selectedProblem?.id ?? ""
+        savedGoalID = selectedGoal?.id ?? ""
+        savedReminderTimeID = selectedReminderTime?.rawValue ?? ""
+
+        Task { @MainActor in
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            finishOnboarding()
+        }
     }
 }
 
@@ -243,8 +272,9 @@ private enum OnboardingStep: Hashable {
     case trial
     case trialFinish
     case contract
+    case notifications
 
-    static let progressTotal = 7
+    static let progressTotal = 8
 
     var showsProgressHeader: Bool {
         self != .greetingOne && self != .greetingTwo && self != .greetingThree
@@ -259,7 +289,26 @@ private enum OnboardingStep: Hashable {
         case .trial: 5
         case .trialFinish: 6
         case .contract: 7
+        case .notifications: 8
         default: 0
+        }
+    }
+}
+
+private enum OnboardingReminderTime: String, CaseIterable, Identifiable {
+    case morning
+    case midday
+    case afternoon
+    case evening
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .morning: "Morning · 8:00 AM"
+        case .midday: "Midday · 12:30 PM"
+        case .afternoon: "Afternoon · 3:00 PM"
+        case .evening: "Evening · 7:00 PM"
         }
     }
 }
@@ -554,7 +603,8 @@ private struct OnboardingFormPage: View {
                 }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, CFSpacing.md)
+        .padding(.vertical, CFSpacing.sm)
         .background(Color.clear)
     }
 
@@ -610,6 +660,74 @@ private struct OnboardingCatMessageScreen: View {
                 CFConfettiView()
                     .allowsHitTesting(false)
             }
+        }
+    }
+}
+
+private struct OnboardingReminderScreen: View {
+    @Binding var selectedTime: OnboardingReminderTime?
+    var onConfirm: () -> Void
+
+    var body: some View {
+        OnboardingPlainScaffold(
+            actionTitle: selectedTime == nil ? "Choose a Time" : "Let Luna Remind Me",
+            isActionDisabled: selectedTime == nil,
+            onAction: onConfirm
+        ) {
+            Spacer(minLength: 76)
+
+            VStack(spacing: CFSpacing.xl) {
+                HStack(alignment: .top, spacing: CFSpacing.md) {
+                    CFCatHero(asset: OnboardingLunaAsset.guide, size: .onboardingCompact)
+
+                    OnboardingDialogueBubble(
+                        text: "When should I nudge you to focus?",
+                        direction: .leading
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+
+                VStack(spacing: CFSpacing.md) {
+                    ForEach(OnboardingReminderTime.allCases) { time in
+                        Button {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                selectedTime = time
+                            }
+                        } label: {
+                            HStack(spacing: CFSpacing.md) {
+                                Text(time.title)
+                                    .font(.system(
+                                        size: 15,
+                                        weight: selectedTime == time ? .bold : .semibold,
+                                        design: .rounded
+                                    ))
+                                    .tracking(0.3)
+                                    .foregroundStyle(CFCloudLayer.graphite)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, CFSpacing.lg)
+                            .frame(maxWidth: .infinity, minHeight: 66)
+                            .background(CFColor.surfacePrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: CFRadius.tile, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: CFRadius.tile, style: .continuous)
+                                    .stroke(
+                                        selectedTime == time ? CFCloudLayer.graphite : CFColor.borderSubtle,
+                                        lineWidth: selectedTime == time ? 1.8 : 0.8
+                                    )
+                            }
+                            .cfShadow(selectedTime == time ? CFCloudLayer.selectionStrongShadow : CFCloudLayer.cardShadow)
+                        }
+                        .buttonStyle(OnboardingPressButtonStyle())
+                        .accessibilityLabel(time.title)
+                        .accessibilityAddTraits(selectedTime == time ? .isSelected : [])
+                    }
+                }
+            }
+            .padding(.horizontal, CFButtonLayout.primaryHorizontalInset - 32)
+
+            Spacer(minLength: 24)
         }
     }
 }
@@ -1242,13 +1360,18 @@ private struct OnboardingChoiceButton: View {
                 .minimumScaleFactor(0.72)
                 .frame(maxWidth: .infinity, minHeight: 66)
                 .padding(.horizontal, CFSpacing.md)
-                .background(CFColor.surfacePrimary)
-                .clipShape(RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous))
+                .background {
+                    RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous)
+                        .fill(CFColor.surfacePrimary)
+                        .cfShadow(isSelected ? CFCloudLayer.selectedShadow : CFCloudLayer.cardShadow)
+                }
                 .overlay {
                     RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous)
-            .strokeBorder(isSelected ? CFCloudLayer.graphite : CFCloudLayer.hairline, lineWidth: isSelected ? 1.8 : 0.8)
-        }
-                .cfShadow(isSelected ? CFCloudLayer.selectionStrongShadow : CFCloudLayer.cardShadow)
+                        .strokeBorder(
+                            isSelected ? CFCloudLayer.graphite : CFCloudLayer.hairline,
+                            lineWidth: isSelected ? 1.8 : 0.8
+                        )
+                }
                 .scaleEffect(isSelected ? 1.008 : 1)
                 .animation(CFMotionCurve.componentTransition, value: isSelected)
         }

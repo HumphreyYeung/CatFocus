@@ -27,7 +27,7 @@ struct BreakView: View {
             Spacer(minLength: CFSpacing.section)
 
             CFCatHero(
-                asset: .video(name: "luna-break", poster: "luna-break-poster"),
+                asset: .video(name: "luna-break-new", poster: "luna-break-new-poster"),
                 size: .focusMedia
             )
             .padding(.top, CFMascotLayout.focusMediaTopPadding)

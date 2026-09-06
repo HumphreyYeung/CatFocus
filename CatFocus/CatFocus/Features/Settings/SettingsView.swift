@@ -151,36 +151,82 @@ struct SettingsView: View {
     }
 
     private var premiumBanner: some View {
-        HStack(spacing: CFSpacing.lg) {
-            VStack(alignment: .leading, spacing: CFSpacing.lg) {
-                Text("Unlock Every Pose.\nStart Free.")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundStyle(CFColor.textInverse)
-                    .lineSpacing(1)
-                    .fixedSize(horizontal: false, vertical: true)
+        Button(action: onPremiumRequested) {
+            HStack(spacing: CFSpacing.lg) {
+                VStack(alignment: .leading, spacing: CFSpacing.lg) {
+                    Text("Unlock Every Pose.\nStart Free.")
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(CFColor.textInverse)
+                        .lineSpacing(1)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Button(action: onPremiumRequested) {
                     Text("GO TO FOCUS")
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .foregroundStyle(CFColor.textPrimary)
                         .frame(width: 142, height: 38)
                         .background(CFColor.surfacePrimary)
                         .clipShape(Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(
+                                    AngularGradient(
+                                        colors: [
+                                            Color(red: 0.26, green: 0.72, blue: 1.00),
+                                            Color(red: 0.50, green: 0.34, blue: 1.00),
+                                            Color(red: 0.96, green: 0.32, blue: 0.72),
+                                            Color(red: 1.00, green: 0.70, blue: 0.26),
+                                            Color(red: 0.36, green: 0.86, blue: 0.68),
+                                            Color(red: 0.26, green: 0.72, blue: 1.00)
+                                        ],
+                                        center: .center
+                                    ),
+                                    lineWidth: 1.8
+                                )
+                        }
                         .shadow(color: CFCloudLayer.cardShadow.color, radius: 8, x: 0, y: 3)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Go to Focus to start")
+
+                Spacer(minLength: CFSpacing.md)
+
+                Color.clear
+                    .frame(width: 76, height: 88)
             }
-
-            Spacer(minLength: CFSpacing.md)
-
-            CFFlexCatMark()
-                .frame(width: 76, height: 88)
+            .padding(.horizontal, 22)
+            .frame(maxWidth: .infinity)
+            .frame(height: 150)
+            .background(CFCloudLayer.graphite)
+            .overlay(alignment: .trailing) {
+                Image("luna-flex-banner")
+                    .resizable()
+                    .scaledToFit()
+                    // Crop before rotating so Luna reads as a playful peek
+                    // from the edge instead of revealing the lower body.
+                    .frame(width: 164, height: 164)
+                    .frame(width: 142, height: 122, alignment: .topTrailing)
+                    .clipped()
+                    .mask {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white, location: 0),
+                                .init(color: .white, location: 0.78),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .rotationEffect(.degrees(-45), anchor: .bottomTrailing)
+                    .offset(x: 70, y: -30)
+                    .accessibilityHidden(true)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
         }
-        .padding(.horizontal, 22)
-        .frame(height: 150)
-        .background(CFCloudLayer.graphite)
-        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .accessibilityLabel("Unlock every pose. Start free.")
+        .accessibilityHint("Opens Pro plans")
     }
 
     private func settingsSection<Content: View>(
@@ -446,99 +492,6 @@ private struct CFDividerInset: View {
         Rectangle()
             .fill(CFColor.divider)
             .frame(height: 1)
-    }
-}
-
-private struct CFFlexCatMark: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = min(proxy.size.width / 76, proxy.size.height / 88)
-
-            ZStack {
-                Circle()
-                    .fill(CFColor.surfacePrimary)
-                    .frame(width: 34, height: 34)
-                    .offset(y: -16)
-
-                HStack(spacing: 20) {
-                    CFFlexTriangle()
-                        .fill(CFColor.surfacePrimary)
-                        .frame(width: 14, height: 18)
-                        .rotationEffect(.degrees(-20))
-
-                    CFFlexTriangle()
-                        .fill(CFColor.surfacePrimary)
-                        .frame(width: 14, height: 18)
-                        .rotationEffect(.degrees(20))
-                }
-                .offset(y: -34)
-
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(CFColor.surfaceSelected)
-                        .frame(width: 4, height: 4)
-                    Circle()
-                        .fill(CFColor.surfaceSelected)
-                        .frame(width: 4, height: 4)
-                }
-                .offset(y: -17)
-
-                Circle()
-                    .fill(CFColor.surfaceSelected)
-                    .frame(width: 4, height: 4)
-                    .offset(y: -10)
-
-                Capsule()
-                    .fill(CFColor.surfacePrimary)
-                    .frame(width: 24, height: 42)
-                    .offset(y: 12)
-
-                flexArm(rotation: -38)
-                    .offset(x: -28, y: -4)
-
-                flexArm(rotation: 38)
-                    .offset(x: 28, y: -4)
-
-                Capsule()
-                    .fill(CFColor.surfacePrimary)
-                    .frame(width: 12, height: 36)
-                    .rotationEffect(.degrees(28))
-                    .offset(x: -12, y: 42)
-
-                Capsule()
-                    .fill(CFColor.surfacePrimary)
-                    .frame(width: 12, height: 36)
-                    .rotationEffect(.degrees(-28))
-                    .offset(x: 14, y: 42)
-
-                Circle()
-                    .stroke(CFColor.surfacePrimary, lineWidth: 5)
-                    .frame(width: 28, height: 28)
-                    .offset(x: 36, y: 18)
-            }
-            .frame(width: 76, height: 88)
-            .scaleEffect(scale)
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func flexArm(rotation: Double) -> some View {
-        Capsule()
-            .fill(CFColor.surfacePrimary)
-            .frame(width: 12, height: 44)
-            .rotationEffect(.degrees(rotation))
-    }
-}
-
-private struct CFFlexTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 

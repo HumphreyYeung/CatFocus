@@ -101,11 +101,19 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
     case jumpRope
     case sitUp
     case highKnees
+    case swimming
+    case boxing
+    case bike
+    case benchPress
+    case pushUp
     case victory
     case trial
 
     static var allCases: [TrainingPose] {
-        [.training, .jumpRope, .sitUp, .highKnees, .kettlebell, .lifting]
+        [
+            .training, .jumpRope, .sitUp, .highKnees, .kettlebell, .lifting,
+            .swimming, .boxing, .bike, .benchPress, .pushUp
+        ]
     }
 
     var id: String { rawValue }
@@ -126,6 +134,16 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
             "Sit Up"
         case .highKnees:
             "High Knees"
+        case .swimming:
+            "Swimming"
+        case .boxing:
+            "Boxing"
+        case .bike:
+            "Bike"
+        case .benchPress:
+            "Bench Press"
+        case .pushUp:
+            "Push Up"
         case .victory:
             "Victory"
         case .trial:
@@ -136,7 +154,7 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
     var assetName: String {
         switch self {
         case .resting:
-            "luna-break-poster"
+            "luna-break-new-poster"
         case .training:
             "luna-pose-run-poster"
         case .kettlebell:
@@ -146,9 +164,19 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
         case .jumpRope:
             "luna-pose-jump-rope-poster"
         case .sitUp:
-            "luna-pose-sit-up-poster"
+            "luna-pose-sit-up-new-poster"
         case .highKnees:
             "luna-pose-high-knees-poster"
+        case .swimming:
+            "luna-pose-swimming-poster"
+        case .boxing:
+            "luna-pose-boxing-poster"
+        case .bike:
+            "luna-pose-bike-poster"
+        case .benchPress:
+            "luna-pose-benchpress-poster"
+        case .pushUp:
+            "luna-pose-pushup-poster"
         case .victory:
             "luna-success"
         case .trial:
@@ -163,7 +191,7 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
     var catAsset: CFCatAsset {
         switch self {
         case .resting:
-            .video(name: "luna-break", poster: "luna-break-poster")
+            .video(name: "luna-break-new", poster: "luna-break-new-poster")
         case .training:
             .video(name: "luna-pose-run", poster: "luna-pose-run-poster")
         case .kettlebell:
@@ -173,9 +201,19 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
         case .jumpRope:
             .video(name: "luna-pose-jump-rope", poster: "luna-pose-jump-rope-poster")
         case .sitUp:
-            .video(name: "luna-pose-sit-up", poster: "luna-pose-sit-up-poster")
+            .video(name: "luna-pose-sit-up-new", poster: "luna-pose-sit-up-new-poster")
         case .highKnees:
             .video(name: "luna-pose-high-knees", poster: "luna-pose-high-knees-poster")
+        case .swimming:
+            .video(name: "luna-pose-swimming", poster: "luna-pose-swimming-poster")
+        case .boxing:
+            .video(name: "luna-pose-boxing", poster: "luna-pose-boxing-poster")
+        case .bike:
+            .video(name: "luna-pose-bike", poster: "luna-pose-bike-poster")
+        case .benchPress:
+            .video(name: "luna-pose-benchpress", poster: "luna-pose-benchpress-poster")
+        case .pushUp:
+            .video(name: "luna-pose-pushup", poster: "luna-pose-pushup-poster")
         case .victory:
             .staticImage(name: "luna-success")
         case .trial:
@@ -213,22 +251,22 @@ struct CFHomeCatVideo: Identifiable, Equatable {
     static let catalog: [CFHomeCatVideo] = [
         CFHomeCatVideo(
             id: "cup",
-            videoName: "cup_01",
+            videoName: "cup_01-white-test",
             posterName: "cup_01-poster"
         ),
         CFHomeCatVideo(
             id: "lying",
-            videoName: "lying_01",
+            videoName: "lying_01-white-test",
             posterName: "lying_01-poster"
         ),
         CFHomeCatVideo(
             id: "reading",
-            videoName: "reading_01",
+            videoName: "reading_01-white-test",
             posterName: "reading_01-poster"
         ),
         CFHomeCatVideo(
             id: "napping",
-            videoName: "napping_01",
+            videoName: "napping_01-white-test",
             posterName: "napping_01-poster"
         )
     ]

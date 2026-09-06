@@ -30,6 +30,7 @@ struct FocusPresetSheet: View {
     @State private var selectedLongBreakMinutes: Int
     @State private var previewAudioPlayer = CFWhiteNoisePlayer()
     @State private var isCustomModeEditorPresented = false
+    @State private var isPoseListExpanded = false
 
     private let durations = [15, 25, 45, 60]
 
@@ -212,7 +213,7 @@ struct FocusPresetSheet: View {
             sectionTitle("Training Pose")
 
             LazyVGrid(columns: columns(count: 3, spacing: 12), spacing: 12) {
-                ForEach(TrainingPose.allCases) { pose in
+                ForEach(visiblePoses) { pose in
                     CFTrainingPoseTile(
                         pose: pose,
                         state: pose.id == draftTrainingPoseID
@@ -230,7 +231,41 @@ struct FocusPresetSheet: View {
                     }
                 }
             }
+
+            if !isPoseListExpanded && TrainingPose.allCases.count > collapsedPoseCount {
+                Button {
+                    withAnimation(CFMotionCurve.componentTransition) {
+                        isPoseListExpanded = true
+                    }
+                } label: {
+                    HStack(spacing: CFSpacing.xs) {
+                        Text("Show all \(TrainingPose.allCases.count) poses")
+                            .font(CFFont.labelCaps)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .foregroundStyle(CFColor.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(CFColor.surfaceSoft)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(CFPressableStyle())
+                .accessibilityLabel("Show all training poses")
+            }
         }
+    }
+
+    private let collapsedPoseCount = 6
+
+    private var visiblePoses: [TrainingPose] {
+        guard !isPoseListExpanded else { return TrainingPose.allCases }
+
+        var poses = Array(TrainingPose.allCases.prefix(collapsedPoseCount))
+        if let selectedPose = TrainingPose(rawValue: draftTrainingPoseID), !poses.contains(selectedPose) {
+            poses.append(selectedPose)
+        }
+        return poses
     }
 
     private var soundSection: some View {
