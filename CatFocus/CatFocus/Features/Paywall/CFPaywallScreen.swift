@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 struct CFPaywallScreen: View {
     @Binding var selectedPlan: OnboardingPlan
@@ -14,99 +13,152 @@ struct CFPaywallScreen: View {
     @State private var restoreMessage = ""
     @State private var isPurchasing = false
     @State private var purchaseSucceeded = false
-    @AppStorage("trialReminderEnabled") private var trialReminderEnabled = false
-
-    private let trialReminderRequestID = "catfocus.trial-ending-reminder"
+    @State private var paywallShownAt = Date()
+    @State private var selectedLegalDocument: CFLegalDocument?
 
     var body: some View {
         GeometryReader { proxy in
+            let mediaHeight = min(270, proxy.size.height * 0.34)
+
             VStack(spacing: 0) {
-                CFPaywallPoseReel(height: min(200, proxy.size.height * 0.25))
+                CFPaywallMediaHeader(source: source, height: mediaHeight)
+                .frame(height: mediaHeight)
+                .padding(.top, -proxy.safeAreaInsets.top)
 
                 VStack(spacing: 0) {
-                    VStack(spacing: CFSpacing.md) {
+                    VStack(spacing: 0) {
+                        brandLockup
+                            .padding(.bottom, CFSpacing.md)
+
                         Text(headline)
-                            .font(.system(size: 26, weight: .black, design: .rounded))
+                            .font(.system(size: 30, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
-                            .textCase(.uppercase)
-                            .lineSpacing(1)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.64)
+                            .allowsTightening(true)
+                            .foregroundStyle(CFColor.textPrimary)
+
+                        Text(subheadline)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(CFColor.textSecondary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                            .padding(.top, CFSpacing.sm)
                     }
+                    .frame(height: 120, alignment: .top)
 
-                    Spacer(minLength: CFSpacing.xl)
+                    HStack {
+                        benefits
+                            .frame(maxWidth: 320, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 148, alignment: .top)
 
-                    benefits
+                    Spacer(minLength: CFSpacing.md)
 
-                    Spacer(minLength: CFSpacing.xl)
+                    trialStatus
+                        .padding(.bottom, CFSpacing.md)
 
-                    planSelector
-                }
-                .frame(maxHeight: .infinity)
-                .padding(.horizontal, CFSpacing.xl)
-                .padding(.top, CFSpacing.sm)
-                .padding(.bottom, CFSpacing.xl)
-
-                VStack(spacing: CFSpacing.sm) {
-                    Text("Cancel Anytime")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(CFColor.textTertiary)
-
-                    trialReminderToggle
+                    CFPaywallTrialTimeline(
+                        endDateText: trialEndDateText,
+                        weeklyPrice: weeklyPrice
+                    )
+                    .padding(.horizontal, CFSpacing.xs)
+                    .padding(.bottom, CFSpacing.lg)
 
                     CFPrimaryButton(
-                        title: purchaseSucceeded ? "Premium Unlocked" : ctaTitle,
+                        title: purchaseSucceeded ? "Premium Unlocked" : "$0.00 for One Week",
                         isLoading: isPurchasing,
+                        showsSweep: true,
                         action: purchase
                     )
 
+                    Text("Then \(weeklyPrice)/week. Cancel anytime.")
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(CFColor.textTertiary)
+                        .padding(.top, CFSpacing.sm)
+
                     legalLinks
-                        .padding(.top, CFSpacing.xs)
+                        .padding(.top, CFSpacing.md)
                 }
-                .padding(.horizontal, CFButtonLayout.primaryHorizontalInset - 32)
-                .padding(.bottom, CFSpacing.lg)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, CFSpacing.xxl)
+                .padding(.top, CFSpacing.md)
+                .padding(.bottom, max(CFSpacing.md, proxy.safeAreaInsets.bottom))
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(CFColor.backgroundPrimary.ignoresSafeArea())
-        // Keep controls in the safe area, above the media and content layers.
-        .overlay(alignment: .topTrailing) {
-            closeButton
+        .overlay(alignment: .top) {
+            HStack {
+                closeButton
+
+                Spacer()
+
+                restoreButton
+            }
                 .padding(.top, CFTabScreenLayout.headerTopPadding)
-                .padding(.trailing, CFTabScreenLayout.horizontalPadding)
+                .padding(.horizontal, CFTabScreenLayout.horizontalPadding)
         }
         .alert("Restore Purchases", isPresented: $isRestoreAlertPresented) {
             Button("Done") {}
         } message: {
             Text(restoreMessage)
         }
-        .onAppear {
-            CFPaywallEventLogger.record(.paywallViewed(source: source))
-            syncTrialReminderPermission()
+        .sheet(item: $selectedLegalDocument) { document in
+            CFLegalDocumentView(document: document)
         }
-        .onChange(of: trialReminderEnabled) { _, isEnabled in
-            guard !isEnabled else { return }
-            UNUserNotificationCenter.current()
-                .removePendingNotificationRequests(withIdentifiers: [trialReminderRequestID])
+        .onAppear {
+            selectedPlan = .weekly
+            paywallShownAt = Date()
+            CFPaywallEventLogger.record(.paywallViewed(source: source))
         }
     }
 
     private var headline: String {
         switch source {
-        case .premiumPose(let pose):
-            return "Unlock \(pose.title)\nwith Luna"
-        case .startTraining:
-            return "Unlock Every Pose.\nStart Free."
-        case .settings:
-            return "Unlock Every Pose.\nStart Free."
+        case .myCatPostcards:
+            return "Unlock Every Postcard"
+        case .premiumPose, .startTraining, .settings:
+            return "Focus Without Limits"
         }
     }
 
-    private var ctaTitle: String {
+    private var subheadline: String {
         switch source {
-        case .startTraining: return "Start Free Trial"
-        case .premiumPose: return "Unlock This Pose"
-        case .settings: return "Unlock Premium"
+        case .myCatPostcards:
+            return "Focus with Luna and collect every handwritten surprise."
+        case .premiumPose, .startTraining, .settings:
+            return "Stay focused longer with Luna by your side."
         }
+    }
+
+    private let weeklyPrice = "$4.99"
+
+    private var trialEndDateText: String {
+        let endDate = Calendar.current.date(byAdding: .day, value: 7, to: paywallShownAt) ?? paywallShownAt
+        return endDate.formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    private var brandLockup: some View {
+        HStack(spacing: CFSpacing.sm) {
+            Text("CatFocus")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+
+            Text("PRO")
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .tracking(0.8)
+                .foregroundStyle(CFColor.textInverse)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background(CFColor.accentTrial)
+                .clipShape(Capsule())
+        }
+        .foregroundStyle(CFColor.textPrimary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("CatFocus Pro")
     }
 
     private var closeButton: some View {
@@ -116,104 +168,100 @@ struct CFPaywallScreen: View {
         }
     }
 
+    private var restoreButton: some View {
+        Button("Restore") {
+            restorePurchases()
+        }
+        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .foregroundStyle(CFColor.textSecondary)
+        .padding(.horizontal, CFSpacing.lg)
+        .frame(height: 40)
+        .background(CFColor.surfacePrimary.opacity(0.9))
+        .clipShape(Capsule())
+        .buttonStyle(CFPressableStyle())
+    }
+
     private var benefits: some View {
         VStack(alignment: .leading, spacing: CFSpacing.sm) {
-            CFPaywallBenefitRow(title: "Unlimited focus sessions")
-            CFPaywallBenefitRow(title: "All training poses and presets")
-            CFPaywallBenefitRow(title: "Breaks, sounds, and progress stats")
+            ForEach(benefitTitles, id: \.self) { title in
+                CFPaywallBenefitRow(title: title)
+            }
         }
-        // Match the plan column's width and inset so optical left/right edges
-        // share the same reference lines instead of relying on intrinsic text width.
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, CFSpacing.xl)
-        // Optical correction: the checkmark/text block reads left-heavy when
-        // compared with the full-width plan cards.
-        .offset(x: CFSpacing.xxl)
     }
 
-    private var trialReminderToggle: some View {
+    private var benefitTitles: [String] {
+        switch source {
+        case .myCatPostcards:
+            return [
+                "Luna's complete postcard collection",
+                "Unlimited Focus sessions",
+                "All training poses and presets",
+                "Progress stats to build better focus habits"
+            ]
+        case .premiumPose, .startTraining, .settings:
+            return [
+                "Unlimited Focus sessions",
+                "All training poses and presets",
+                "Collect Luna's handwritten postcards",
+                "Progress stats to build better focus habits"
+            ]
+        }
+    }
+
+    private var trialStatus: some View {
         HStack(spacing: CFSpacing.sm) {
-            HStack(spacing: CFSpacing.sm) {
-                Image(systemName: "bell.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(CFColor.textSecondary)
+            Text("7-Day Free Trial Enabled")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(CFColor.textPrimary)
 
-                Text("Remind me before trial ends")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CFColor.textSecondary)
-            }
-
-            Spacer(minLength: CFSpacing.sm)
-
-            Toggle("Remind me before trial ends", isOn: trialReminderBinding)
-                .labelsHidden()
-                .tint(CFCloudLayer.graphite)
-                .scaleEffect(0.78)
-                .frame(width: 44, height: 44)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, CFSpacing.lg)
-        .frame(minHeight: 44)
-        .background(CFColor.surfaceWhisper)
+        .frame(height: 68)
+        .background(CFColor.surfaceSoft)
         .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Remind me before trial ends")
-        .accessibilityValue(trialReminderEnabled ? "On" : "Off")
-        .accessibilityHint("Schedules a notification one day before the three-day trial ends")
-    }
-
-    private var planSelector: some View {
-        VStack(spacing: CFSpacing.md) {
-            CFPaywallPlanCard(title: "Weekly Training", price: "$4.99", suffix: "/week", detail: "3 days free, then $4.99/week", badge: "3-Day Free Trial", isSelected: selectedPlan == .weekly) {
-                CFPaywallEventLogger.record(.planSelected(.weekly))
-                selectedPlan = .weekly
-            }
-
-            CFPaywallPlanCard(title: "Lifetime Access", price: "$49.99", suffix: "once", detail: "No recurring charge", badge: "Best Value", isSelected: selectedPlan == .lifetime) {
-                CFPaywallEventLogger.record(.planSelected(.lifetime))
-                selectedPlan = .lifetime
-            }
-        }
-        .animation(
-            reduceMotion ? .linear(duration: 0.01) : CFMotionCurve.componentTransition,
-            value: selectedPlan
-        )
     }
 
     private var legalLinks: some View {
-        HStack(spacing: CFSpacing.lg) {
-            Button("RESTORE") {
-                CFPaywallEventLogger.record(.restoreAttempted)
-                let restored = entitlementStore.restorePurchases()
-                restoreMessage = restored
-                    ? "Your premium access is active on this device."
-                    : "No premium purchase was found on this device."
-                isRestoreAlertPresented = true
+        HStack {
+            Button("Terms of Use") {
+                selectedLegalDocument = .terms
             }
-        .buttonStyle(CFPressableStyle())
-            Text("•")
-            Text("TERMS")
-            Text("•")
-            Text("PRIVACY")
+
+            Spacer()
+
+            Button("Privacy Policy") {
+                selectedLegalDocument = .privacy
+            }
         }
-        .font(.system(size: 9.5, weight: .medium, design: .rounded))
-        .tracking(1.1)
+        .buttonStyle(.plain)
+        .font(.system(size: 10.5, weight: .medium, design: .rounded))
         .foregroundStyle(CFColor.textTertiary)
+    }
+
+    private func restorePurchases() {
+        CFPaywallEventLogger.record(.restoreAttempted)
+        let restored = entitlementStore.restorePurchases()
+        restoreMessage = restored
+            ? "Your premium access is active on this device."
+            : "No premium purchase was found on this device."
+        isRestoreAlertPresented = true
     }
 
     private func purchase() {
         guard !isPurchasing else { return }
-        CFPaywallEventLogger.record(.purchaseStarted(selectedPlan))
+        selectedPlan = .weekly
+        CFPaywallEventLogger.record(.purchaseStarted(.weekly))
         isPurchasing = true
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
             isPurchasing = false
-            guard entitlementStore.purchase(plan: selectedPlan) else { return }
-            CFPaywallEventLogger.record(.purchaseSucceeded(selectedPlan))
-            if selectedPlan == .weekly && trialReminderEnabled {
-                scheduleTrialReminder()
-            }
+            guard entitlementStore.purchase(plan: .weekly) else { return }
+            CFPaywallEventLogger.record(.purchaseSucceeded(.weekly))
             withAnimation(reduceMotion ? .linear(duration: 0.01) : CFMotionCurve.componentTransition) {
                 purchaseSucceeded = true
             }
@@ -226,74 +274,114 @@ struct CFPaywallScreen: View {
             }
         }
     }
+}
 
-    private func scheduleTrialReminder() {
-        Task {
-            let notificationCenter = UNUserNotificationCenter.current()
-            let isAuthorized = (try? await notificationCenter.requestAuthorization(options: [.alert, .sound])) ?? false
-            guard isAuthorized else {
-                await MainActor.run {
-                    trialReminderEnabled = false
-                }
-                return
-            }
+private struct CFPaywallMediaHeader: View {
+    var source: CFPaywallSource
+    var height: CGFloat
 
-            let content = UNMutableNotificationContent()
-            content.title = "Your CatFocus trial ends tomorrow"
-            content.body = "Review your plan before your free trial renews."
-            content.sound = .default
-
-            let twoDays: TimeInterval = 2 * 24 * 60 * 60
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: twoDays, repeats: false)
-            let request = UNNotificationRequest(
-                identifier: trialReminderRequestID,
-                content: content,
-                trigger: trigger
-            )
-            try? await notificationCenter.add(request)
-        }
-    }
-
-    private var trialReminderBinding: Binding<Bool> {
-        Binding(
-            get: { trialReminderEnabled },
-            set: { wantsReminder in
-                guard wantsReminder else {
-                    trialReminderEnabled = false
-                    UNUserNotificationCenter.current()
-                        .removePendingNotificationRequests(withIdentifiers: [trialReminderRequestID])
-                    return
-                }
-
-                Task { @MainActor in
-                    let settings = await UNUserNotificationCenter.current().notificationSettings()
-                    switch settings.authorizationStatus {
-                    case .authorized, .provisional, .ephemeral:
-                        trialReminderEnabled = true
-                    case .notDetermined:
-                        let granted = (try? await UNUserNotificationCenter.current()
-                            .requestAuthorization(options: [.alert, .sound])) ?? false
-                        trialReminderEnabled = granted
-                    case .denied:
-                        trialReminderEnabled = false
-                    @unknown default:
-                        trialReminderEnabled = false
-                    }
-                }
-            }
-        )
-    }
-
-    private func syncTrialReminderPermission() {
-        Task { @MainActor in
-            let settings = await UNUserNotificationCenter.current().notificationSettings()
-            guard settings.authorizationStatus == .authorized ||
-                    settings.authorizationStatus == .provisional ||
-                    settings.authorizationStatus == .ephemeral else {
-                trialReminderEnabled = false
-                return
+    var body: some View {
+        Group {
+            if source == .myCatPostcards {
+                CFPaywallPostcardHero()
+            } else {
+                CFPaywallPoseReel(height: height, content: .poses)
+                    // The shared media canvas stays fixed so the title never
+                    // moves; Pose artwork is optically lower inside its own
+                    // canvas to avoid the source video's bottom white margin.
+                    .offset(y: 14)
             }
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .overlay(alignment: .bottom) {
+            if source == .myCatPostcards {
+                LinearGradient(
+                    colors: [
+                        CFColor.backgroundPrimary.opacity(0),
+                        CFColor.backgroundPrimary.opacity(0.28),
+                        CFColor.backgroundPrimary
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: min(96, height * 0.42))
+                .allowsHitTesting(false)
+            }
+        }
+        .clipped()
+    }
+}
+
+private struct CFPaywallPostcardHero: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Image("CollectionPostcardHero")
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+        }
+        .frame(maxWidth: .infinity)
+        .background(CFColor.backgroundPrimary)
+        .accessibilityLabel("A preview of Luna's postcard collection")
+    }
+}
+
+private struct CFPaywallTrialTimeline: View {
+    var endDateText: String
+    var weeklyPrice: String
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Rectangle()
+                .fill(CFColor.divider)
+                .frame(width: 1.5, height: 42)
+                .offset(x: 3.25)
+
+            VStack(spacing: 18) {
+                timelineRow {
+                    Text("Today")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+
+                    Spacer(minLength: CFSpacing.sm)
+
+                    Text("7 days free")
+                        .foregroundStyle(CFColor.accentSuccess)
+
+                    Text("$0.00")
+                }
+
+                timelineRow {
+                    Text("Renews \(endDateText)")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    Spacer(minLength: CFSpacing.sm)
+
+                    Text("\(weeklyPrice)/week")
+                        .lineLimit(1)
+                }
+            }
+        }
+        .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+        .foregroundStyle(CFColor.textPrimary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Free today. Seven days free. Renews \(endDateText) at \(weeklyPrice) per week.")
+    }
+
+    private func timelineRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: CFSpacing.md) {
+            Circle()
+                .fill(CFColor.borderSelected)
+                .frame(width: 8, height: 8)
+
+            HStack(alignment: .firstTextBaseline, spacing: CFSpacing.sm) {
+                content()
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(height: 24)
     }
 }
 
@@ -302,28 +390,71 @@ private struct CFPaywallPoseReel: View {
     @State private var animationStartDate = Date()
 
     var height: CGFloat
+    var content: Content
 
-    private let tileWidth: CGFloat = 190
-    private let tileGap: CGFloat = 8
+    private var tileWidth: CGFloat {
+        guard content == .postcards else { return 190 }
+        // Keep the complete 16:9 artwork, while making the card occupy
+        // approximately 95% of the reel's height instead of leaving a large
+        // vertical gap inside the media area.
+        return height * 0.95 * (16.0 / 9.0)
+    }
+    private let tileGap: CGFloat = 10
     private let animationDuration: TimeInterval = 34
     private let poses = TrainingPose.allCases
+    private let postcards = (1...12).map { "CollectionPoster\(String(format: "%02d", $0))" }
+
+    enum Content: Equatable {
+        case poses
+        case postcards
+    }
+
+    private var itemCount: Int {
+        content == .postcards ? postcards.count : poses.count
+    }
 
     private var cycleDistance: CGFloat {
-        CGFloat(poses.count) * (tileWidth + tileGap)
+        CGFloat(itemCount) * (tileWidth + tileGap)
     }
 
     var body: some View {
         GeometryReader { proxy in
             TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: reduceMotion)) { context in
-                HStack(spacing: 0) {
-                    ForEach(Array(0..<(poses.count * 2)), id: \.self) { index in
-                        let poseIndex = index % poses.count
-                        tile(for: poses[poseIndex], startDelay: Double(index) * 0.04)
-                            .padding(.trailing, tileGap)
+                ZStack {
+                    HStack(spacing: 0) {
+                        ForEach(Array(0..<(itemCount * 2)), id: \.self) { index in
+                            tile(at: index, startDelay: Double(index) * 0.04)
+                                .padding(.trailing, tileGap)
+                        }
+                    }
+                    .offset(x: offset(at: context.date))
+                    .frame(minWidth: proxy.size.width, alignment: .leading)
+
+                    if content == .postcards {
+                        Rectangle()
+                            // A lighter material keeps the postcard silhouettes
+                            // readable; the glass character comes from the
+                            // layered tint and edge highlight below.
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.48)
+                            .allowsHitTesting(false)
+
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.17),
+                                .white.opacity(0.07),
+                                .black.opacity(0.035)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .allowsHitTesting(false)
+
+                        Rectangle()
+                            .stroke(.white.opacity(0.22), lineWidth: 0.75)
+                            .allowsHitTesting(false)
                     }
                 }
-                .offset(x: offset(at: context.date))
-                .frame(minWidth: proxy.size.width, alignment: .leading)
             }
         }
         .frame(height: height)
@@ -340,7 +471,17 @@ private struct CFPaywallPoseReel: View {
     }
 
     @ViewBuilder
-    private func tile(for pose: TrainingPose, startDelay: TimeInterval) -> some View {
+    private func tile(at index: Int, startDelay: TimeInterval) -> some View {
+        if content == .postcards {
+            postcardTile(name: postcards[index % postcards.count])
+        } else {
+            let pose = poses[index % poses.count]
+            poseTile(for: pose, startDelay: startDelay)
+        }
+    }
+
+    @ViewBuilder
+    private func poseTile(for pose: TrainingPose, startDelay: TimeInterval) -> some View {
         switch pose.catAsset {
         case .video(let name, let poster):
             CFVideoLoopView(
@@ -356,6 +497,13 @@ private struct CFPaywallPoseReel: View {
                 .frame(width: tileWidth, height: height)
         }
     }
+
+    private func postcardTile(name: String) -> some View {
+        Image(name)
+            .resizable()
+            .scaledToFit()
+        .frame(width: tileWidth, height: height)
+    }
 }
 
 private struct CFPaywallBenefitRow: View {
@@ -364,83 +512,18 @@ private struct CFPaywallBenefitRow: View {
     var body: some View {
         HStack(spacing: CFSpacing.sm) {
             Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 11, weight: .black))
+                .frame(width: 26, height: 26)
+                .foregroundStyle(CFColor.accentTrial)
+                .background(CFColor.accentTrial.opacity(0.16))
+                .clipShape(Circle())
             Text(title)
                 .font(.system(size: 15, weight: .medium, design: .rounded))
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .allowsTightening(true)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(CFColor.textSecondary)
-    }
-}
-
-private struct CFPaywallPlanCard: View {
-    var title: String
-    var price: String
-    var suffix: String
-    var detail: String
-    var badge: String
-    var isSelected: Bool
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                VStack(alignment: .leading, spacing: CFSpacing.xs) {
-                    Text(title.uppercased())
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .tracking(1.1)
-                        .foregroundStyle(isSelected ? CFColor.textSecondary : CFColor.textTertiary)
-
-                    HStack(alignment: .lastTextBaseline, spacing: 2) {
-                        Text(price)
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                        Text(suffix)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                    }
-                    .foregroundStyle(CFColor.textPrimary)
-
-                    Text(detail)
-                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? CFColor.textSecondary : CFColor.textTertiary)
-                }
-
-                Spacer()
-
-                ZStack {
-                    Circle()
-                        .stroke(CFColor.borderSubtle, lineWidth: 0.8)
-                        .frame(width: 25, height: 25)
-                    if isSelected {
-                        Circle()
-                            .fill(CFCloudLayer.graphite)
-                            .frame(width: 13, height: 13)
-                    }
-                }
-            }
-            .padding(.horizontal, CFSpacing.xl)
-            .frame(height: 88)
-            .background(CFColor.surfacePrimary)
-            .clipShape(RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous)
-                    .stroke(
-                        isSelected ? CFCloudLayer.graphite : CFColor.borderSubtle,
-                        lineWidth: isSelected ? 1.8 : 0.8
-                    )
-            }
-            .overlay(alignment: .topTrailing) {
-                Text(badge.uppercased())
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .tracking(0.6)
-                    .foregroundStyle(CFColor.textInverse)
-                    .padding(.horizontal, CFSpacing.md)
-                    .frame(height: 20)
-                    .background(badge == "3-Day Free Trial" ? CFColor.accentTrial : CFColor.surfaceSelected)
-                    .clipShape(Capsule())
-                    .offset(x: -24, y: -10)
-            }
-            .cfShadow(isSelected ? CFCloudLayer.selectionStrongShadow : CFCloudLayer.cardShadow)
-        }
-        .buttonStyle(CFPressableStyle())
-        .accessibilityLabel(title)
     }
 }

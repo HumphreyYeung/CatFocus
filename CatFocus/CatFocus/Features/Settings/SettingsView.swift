@@ -49,12 +49,15 @@ struct SettingsView: View {
                     }
 
                     settingsSection(title: "Timer Configuration") {
-                        VStack(spacing: CFSpacing.lg) {
+                        VStack(spacing: 0) {
                             CFTimeOptionRow(
-                                title: "Focus Duration",
+                                title: "Focus",
                                 selection: $focusDurationMinutes,
                                 choices: [15, 25, 45, 60]
                             )
+
+                            Divider()
+                                .overlay(CFColor.divider)
 
                             CFTimeOptionRow(
                                 title: "Short Break",
@@ -62,14 +65,17 @@ struct SettingsView: View {
                                 choices: [5, 10, 15]
                             )
 
+                            Divider()
+                                .overlay(CFColor.divider)
+
                             CFTimeOptionRow(
                                 title: "Long Break",
                                 selection: $longBreakMinutes,
                                 choices: [10, 15, 20]
                             )
                         }
-                        .padding(.horizontal, CFSpacing.xl)
-                        .padding(.vertical, CFSpacing.xl)
+                        .padding(.horizontal, CFSpacing.lg)
+                        .padding(.vertical, CFSpacing.sm)
                     }
 
                     settingsSection(title: "Notifications & Audio") {
@@ -290,7 +296,7 @@ enum CFLegalDocument: String, Identifiable {
     }
 }
 
-private struct CFLegalDocumentView: View {
+struct CFLegalDocumentView: View {
     @Environment(\.dismiss) private var dismiss
     var document: CFLegalDocument
 

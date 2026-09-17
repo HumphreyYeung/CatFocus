@@ -80,6 +80,7 @@ struct CFStatusPill: View {
 
 struct CFFitnessStatusPill: View {
     var score: FitnessScore
+    var showsInfoIndicator = false
 
     var body: some View {
         HStack(spacing: CFSpacing.xs) {
@@ -98,6 +99,12 @@ struct CFFitnessStatusPill: View {
                 .foregroundStyle(CFColor.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+
+            if showsInfoIndicator {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(CFColor.textTertiary)
+            }
         }
         .padding(.horizontal, 10)
         .frame(minHeight: 28)
@@ -107,7 +114,7 @@ struct CFFitnessStatusPill: View {
             Capsule()
                 .stroke(CFColor.borderSubtle, lineWidth: 1)
         }
-        .accessibilityLabel("Fitness \(score.value) percent, \(score.healthStatus.displayLabel)")
+        .accessibilityLabel("Luna's health, \(score.value) percent, \(score.healthStatus.displayLabel)")
     }
 }
 

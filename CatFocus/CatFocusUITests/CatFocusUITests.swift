@@ -89,6 +89,39 @@ final class CatFocusUITests: XCTestCase {
     }
 
     @MainActor
+    func testMyCatShowsLockedPostcardPreviewBeforeTrial() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("UITEST_SKIP_ONBOARDING")
+        app.launchArguments.append("UITEST_RESET_PREMIUM")
+        app.launchArguments.append("UITEST_RESET_POSTCARDS")
+        app.launch()
+
+        app.buttons["My Cat tab"].tap()
+
+        XCTAssertTrue(app.staticTexts["Postcards from Luna"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Luna hasn't started writing yet"].exists)
+        XCTAssertTrue(app.buttons["Start Free Trial"].exists)
+        XCTAssertFalse(app.staticTexts["TRAINING POSES"].exists)
+    }
+
+    @MainActor
+    func testMyCatShowsEmptyPostcardCatalogWithPremiumAccess() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("UITEST_SKIP_ONBOARDING")
+        app.launchArguments.append("UITEST_PREMIUM")
+        app.launchArguments.append("UITEST_RESET_POSTCARDS")
+        app.launch()
+
+        app.buttons["My Cat tab"].tap()
+
+        XCTAssertTrue(app.staticTexts["Postcards from Luna"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["0 ACTIVE DAYS"].exists)
+        XCTAssertTrue(app.staticTexts["0 of 12 collected"].exists)
+        XCTAssertTrue(app.staticTexts["POSTCARD LOCKED"].firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["TRAINING POSES"].exists)
+    }
+
+    @MainActor
     func testOnboardingStoryFlowsIntoNameScene() throws {
         let app = XCUIApplication()
         app.launchArguments.append("UITEST_OPEN_ONBOARDING")
@@ -97,18 +130,36 @@ final class CatFocusUITests: XCTestCase {
         let continueButton = app.buttons["Tap to continue"]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 2))
         continueButton.tap()
+        XCTAssertTrue(app.staticTexts["Oh... you caught me."].waitForExistence(timeout: 3))
         continueButton.tap()
+        XCTAssertTrue(
+            app.staticTexts[
+                "Okay... confession. I can't stop eating. Maybe I need a training partner. What's your name?"
+            ].waitForExistence(timeout: 3)
+        )
         continueButton.tap()
 
-        let nameField = app.textFields["Your name"]
+        let nameField = app.textFields["ENTER YOUR NAME"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["WHAT SHOULD I CALL YOU?"].exists)
+        XCTAssertTrue(
+            app.staticTexts[
+                "A training partner sounds nice. What should I call you?"
+            ].waitForExistence(timeout: 3)
+        )
 
-        let continueNameButton = app.buttons["onboardingNameContinue"]
+        let continueNameButton = app.buttons["Continue"]
         XCTAssertTrue(continueNameButton.exists)
         XCTAssertFalse(continueNameButton.isEnabled)
 
         nameField.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 2))
+        XCTAssertLessThanOrEqual(nameField.frame.maxY, continueNameButton.frame.minY)
+        if keyboard.frame.intersects(app.windows.firstMatch.frame) {
+            XCTAssertLessThanOrEqual(continueNameButton.frame.maxY, keyboard.frame.minY)
+            XCTAssertLessThanOrEqual(keyboard.frame.minY - continueNameButton.frame.maxY, 24)
+        }
+
         nameField.typeText("Alex")
         XCTAssertTrue(continueNameButton.isEnabled)
         continueNameButton.tap()
@@ -149,9 +200,7 @@ final class CatFocusUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["SHARE TO WORLD"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["THANK YOU FOR STAYING FOCUSED. I FEEL MUCH STRONGER NOW!"].exists)
         XCTAssertTrue(app.buttons["Save share card"].exists)
-        XCTAssertTrue(app.buttons["Instagram share card"].exists)
-        XCTAssertTrue(app.buttons["TikTok share card"].exists)
-        XCTAssertTrue(app.buttons["Message share card"].exists)
+        XCTAssertTrue(app.buttons["Share focus card"].exists)
 
         app.buttons["Close share card"].tap()
         XCTAssertTrue(app.staticTexts["Stats"].waitForExistence(timeout: 2))
@@ -287,7 +336,7 @@ final class CatFocusUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Start Free Trial"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["$0.00 for One Week"].waitForExistence(timeout: 2))
 
         let dismissPaywallButton = app.buttons["Continue without premium"]
         XCTAssertTrue(dismissPaywallButton.waitForExistence(timeout: 5))
@@ -295,8 +344,8 @@ final class CatFocusUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["KEEP PUSHING"].exists)
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Start Free Trial"].waitForExistence(timeout: 2))
-        app.buttons["Start Free Trial"].tap()
+        XCTAssertTrue(app.buttons["$0.00 for One Week"].waitForExistence(timeout: 2))
+        app.buttons["$0.00 for One Week"].tap()
 
         XCTAssertTrue(app.staticTexts["KEEP PUSHING"].waitForExistence(timeout: 2))
     }

@@ -4,6 +4,7 @@ import OSLog
 enum CFPaywallSource: Equatable {
     case startTraining
     case premiumPose(TrainingPose)
+    case myCatPostcards
     case settings
 }
 

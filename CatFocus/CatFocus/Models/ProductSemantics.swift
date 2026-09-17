@@ -20,7 +20,7 @@ final class CFEntitlementStore: ObservableObject {
         }
 
         hasPremiumAccess = defaults.bool(forKey: Self.accessKey)
-        selectedPlan = OnboardingPlan(rawValue: defaults.string(forKey: Self.selectedPlanKey) ?? "") ?? .lifetime
+        selectedPlan = OnboardingPlan(rawValue: defaults.string(forKey: Self.selectedPlanKey) ?? "") ?? .weekly
 
         if arguments.contains("UITEST_PREMIUM") {
             hasPremiumAccess = true

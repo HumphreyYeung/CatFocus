@@ -336,7 +336,6 @@ private struct OnboardingChoice: Identifiable, Equatable {
 
 enum OnboardingPlan: String, Equatable {
     case weekly
-    case lifetime
 }
 
 private enum OnboardingLunaAsset {
@@ -498,6 +497,7 @@ private struct OnboardingFormPage: View {
             message: message,
             actionTitle: "Continue",
             isActionDisabled: isActionDisabled,
+            isInputFocused: step == .name && isNameFieldFocused,
             onAction: onContinue
         ) {
             ZStack(alignment: .leading) {
@@ -514,7 +514,10 @@ private struct OnboardingFormPage: View {
                     EmptyView()
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 378)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: step == .name && isNameFieldFocused ? 76 : 378
+            )
             .clipped()
         }
         .animation(reduceMotion ? .linear(duration: 0.01) : .easeInOut(duration: 0.24), value: step)
@@ -1154,6 +1157,7 @@ private struct OnboardingFormScaffold<Content: View>: View {
     var message: String
     var actionTitle: String
     var isActionDisabled: Bool = false
+    var isInputFocused = false
     var onAction: () -> Void
     @ViewBuilder var content: Content
 
@@ -1162,19 +1166,23 @@ private struct OnboardingFormScaffold<Content: View>: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: CFSpacing.md) {
                     CFCatHero(asset: OnboardingLunaAsset.guide, size: .onboardingCompact)
-                    OnboardingDialogueBubble(text: message, direction: .leading)
+                    OnboardingDialogueBubble(
+                        text: message,
+                        direction: .leading,
+                        style: .compact
+                    )
                         .frame(maxWidth: .infinity)
                 }
                 .padding(.top, 72)
 
-                Spacer(minLength: CFSpacing.xl)
+                Spacer(minLength: isInputFocused ? CFSpacing.sm : CFSpacing.xl)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     content
                 }
                 .scrollDismissesKeyboard(.interactively)
 
-                Spacer(minLength: CFSpacing.xl)
+                Spacer(minLength: isInputFocused ? CFSpacing.sm : CFSpacing.xl)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, CFButtonLayout.primaryHorizontalInset - 32)
@@ -1187,7 +1195,7 @@ private struct OnboardingFormScaffold<Content: View>: View {
                 action: onAction
             )
             .padding(.horizontal, CFButtonLayout.primaryHorizontalInset - 32)
-            .padding(.bottom, 48)
+            .padding(.bottom, isInputFocused ? CFSpacing.sm : 48)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(CFColor.backgroundPrimary)
@@ -1258,19 +1266,41 @@ struct OnboardingPlainScaffold<Content: View>: View {
     }
 }
 
+private enum OnboardingDialogueBubbleStyle {
+    case standard
+    case compact
+
+    var font: Font {
+        switch self {
+        case .standard:
+            CFFont.pactHandwritten
+        case .compact:
+            Font.custom("ChalkboardSE-Regular", size: 16, relativeTo: .body)
+        }
+    }
+
+    var lineSpacing: CGFloat {
+        switch self {
+        case .standard: 3
+        case .compact: 2
+        }
+    }
+}
+
 private struct OnboardingDialogueBubble: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var text: String
     var direction: OnboardingBubbleDirection = .bottom
     var animateTyping = true
+    var style: OnboardingDialogueBubbleStyle = .standard
     @State private var displayedText = ""
     @State private var typingTask: Task<Void, Never>?
 
     var body: some View {
         Text(displayedText.isEmpty ? " " : displayedText)
-            .font(CFFont.pactHandwritten)
+            .font(style.font)
             .foregroundStyle(CFCloudLayer.graphite.opacity(0.88))
-            .lineSpacing(3)
+            .lineSpacing(style.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, CFSpacing.lg)
             .padding(.vertical, CFSpacing.md)

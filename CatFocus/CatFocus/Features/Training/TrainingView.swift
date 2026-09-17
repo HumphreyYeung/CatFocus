@@ -29,7 +29,7 @@ struct TrainingView: View {
     @State private var areControlsVisible = true
     @State private var isInteractingWithControl = false
     @State private var controlsVisibilityResetID = UUID()
-    @State private var audioPlayer = CFWhiteNoisePlayer()
+    @StateObject private var audioPlayer = CFWhiteNoisePlayer()
     @State private var hasEntered = false
 
     init(
@@ -106,6 +106,7 @@ struct TrainingView: View {
             pauseSession()
             audioPlayer.stop()
             audioPlayer.deactivate()
+            CFNowPlayingController.shared.stop()
         }
         .onChange(of: scenePhase) { _, phase in
             UIApplication.shared.isIdleTimerDisabled = phase == .active
@@ -113,9 +114,10 @@ struct TrainingView: View {
                 resumeSession()
                 startSelectedWhiteNoiseIfNeeded()
             } else {
-                pauseSession()
-                audioPlayer.stop()
-                audioPlayer.deactivate()
+                // Keep the focus clock and white noise alive while the phone
+                // is locked. The playback audio session and background mode
+                // allow iOS to continue off-screen.
+                CFNowPlayingController.shared.setPlaybackRate(1)
             }
         }
         .onChange(of: selectedWhiteNoiseID) { _, _ in
@@ -125,8 +127,14 @@ struct TrainingView: View {
             startSelectedWhiteNoiseIfNeeded()
         }
         .onChange(of: presentedPresetSection) { _, section in
-            guard section == nil else { return }
-            revealControls()
+            if section == nil {
+                startSelectedWhiteNoiseIfNeeded()
+                revealControls()
+            } else {
+                audioPlayer.stop()
+                audioPlayer.deactivate()
+                CFNowPlayingController.shared.stop()
+            }
         }
         .sheet(item: $presentedPresetSection) { section in
             FocusPresetSheet(
@@ -384,6 +392,10 @@ struct TrainingView: View {
                     totalSessionSeconds
                 )
                 elapsedSeconds = currentElapsed
+                CFNowPlayingController.shared.update(
+                    elapsed: currentElapsed,
+                    isPlaying: isSessionActive && whiteNoiseEnabled && selectedWhiteNoiseID != PresetSound.none.rawValue
+                )
 
                 if currentElapsed >= totalSessionSeconds {
                     completeSession()
@@ -415,6 +427,9 @@ struct TrainingView: View {
         timerTask?.cancel()
         timerTask = nil
         sendSessionAlert()
+        CFNowPlayingController.shared.stop()
+        audioPlayer.stop()
+        audioPlayer.deactivate()
         onSuccess(currentOutcome(state: .success))
     }
 
@@ -428,11 +443,30 @@ struct TrainingView: View {
 
     private func startSelectedWhiteNoiseIfNeeded() {
         guard scenePhase == .active else { return }
+        guard presentedPresetSection == nil else { return }
         guard whiteNoiseEnabled else {
             audioPlayer.stop()
+            audioPlayer.deactivate()
+            CFNowPlayingController.shared.stop()
             return
         }
-        audioPlayer.play(sound: PresetSound(rawValue: selectedWhiteNoiseID) ?? .none)
+        let sound = PresetSound(rawValue: selectedWhiteNoiseID) ?? .none
+        guard sound != .none else {
+            audioPlayer.stop()
+            audioPlayer.deactivate()
+            CFNowPlayingController.shared.stop()
+            return
+        }
+        // Training is the only flow that claims the system's primary media
+        // slot, allowing CatFocus to appear in Lock Screen Now Playing.
+        audioPlayer.play(sound: sound, mixesWithOthers: false)
+        CFNowPlayingController.shared.start(
+            duration: totalSessionSeconds,
+            artworkName: selectedTrainingPose.posterAssetName,
+            onPlay: { [weak audioPlayer] in audioPlayer?.resume() },
+            onPause: { [weak audioPlayer] in audioPlayer?.pause() }
+        )
+        CFNowPlayingController.shared.update(elapsed: elapsedSeconds, isPlaying: true)
     }
 
     private func sendSessionAlert() {

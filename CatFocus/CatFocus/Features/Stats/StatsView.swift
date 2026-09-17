@@ -5,6 +5,8 @@ struct StatsView: View {
     var records: [TrainingSessionRecord] = []
     var onShare: () -> Void = {}
     var onTabSelected: (CFAppTab) -> Void = { _ in }
+    @State private var activityRange: CFStatsActivityRange = .weekly
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,7 +19,7 @@ struct StatsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: CFSpacing.xxl) {
                     metricGrid.cfEntrance(delay: 0.08)
-                    weeklySection.cfEntrance(delay: 0.16)
+                    activitySection.cfEntrance(delay: 0.16)
                     recentSection.cfEntrance(delay: 0.24)
                 }
                 .padding(.horizontal, CFTabScreenLayout.horizontalPadding)
@@ -42,19 +44,61 @@ struct StatsView: View {
 
     private var metricGrid: some View {
         HStack(spacing: CFSpacing.lg) {
-            CFMetricCard(label: "Focus Time", value: focusTimeText, footnote: "\(completedSessionCount) sessions", tone: .success)
-            CFMetricCard(label: "Fitness", value: "\(fitnessScore.value)%", status: fitnessScore.healthStatus.displayLabel, tone: .health)
+            CFMetricCard(
+                label: "Focus Time",
+                value: focusTimeText,
+                footnote: "Avg \(averageFocusTimeText)",
+                tone: .success
+            )
+            CFMetricCard(
+                label: "Focus Days",
+                value: "\(completedFocusDayCount)",
+                footnote: "\(completedSessionCount) sessions"
+            )
         }
     }
 
-    private var weeklySection: some View {
+    private var activitySection: some View {
         VStack(alignment: .leading, spacing: CFSpacing.lg) {
-            Text("Weekly Activity")
-                .font(CFFont.cardTitle)
-                .foregroundStyle(CFColor.textPrimary)
+            HStack(spacing: CFSpacing.md) {
+                Text("Activity")
+                    .font(CFFont.cardTitle)
+                    .foregroundStyle(CFColor.textPrimary)
 
-            CFWeeklyActivityChart(days: weeklyActivity)
+                Spacer()
+
+                CFStatsRangePicker(selection: $activityRange)
+            }
+
+            Group {
+                switch activityRange {
+                case .weekly:
+                    CFWeeklyActivityChart(days: weeklyActivity)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 1.02, anchor: .top))
+                        ))
+                case .monthly:
+                    CFMonthlyActivityHeatmap(
+                        title: monthlyActivityTitle,
+                        cells: monthlyActivityCells
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 1.02, anchor: .top))
+                    ))
+                }
+            }
         }
+        .animation(
+            reduceMotion ? nil : .interpolatingSpring(
+                mass: 1.0,
+                stiffness: 270,
+                damping: 32,
+                initialVelocity: 0
+            ),
+            value: activityRange
+        )
     }
 
     private var recentSection: some View {
@@ -92,6 +136,15 @@ struct StatsView: View {
         records.filter { $0.result == .success }.count
     }
 
+    private var completedFocusDayCount: Int {
+        let calendar = Calendar.current
+        return Set(
+            records
+                .filter { $0.result == .success }
+                .map { calendar.startOfDay(for: $0.date) }
+        ).count
+    }
+
     private var focusTimeText: String {
         if totalCompletedMinutes >= 60 {
             return String(format: "%.1fh", Double(totalCompletedMinutes) / 60)
@@ -99,8 +152,9 @@ struct StatsView: View {
         return "\(totalCompletedMinutes)m"
     }
 
-    private var fitnessScore: FitnessScore {
-        cat.fitnessScore
+    private var averageFocusTimeText: String {
+        guard completedSessionCount > 0 else { return "0m" }
+        return formattedDuration(Int((Double(totalCompletedMinutes) / Double(completedSessionCount)).rounded()))
     }
 
     private var weeklyActivity: [CFActivityDay] {
@@ -123,6 +177,51 @@ struct StatsView: View {
                 durationMinutes: minutes
             )
         }
+    }
+
+    private var monthlyActivityTitle: String {
+        Date.now.formatted(.dateTime.month(.wide).year())
+    }
+
+    private var monthlyActivityCells: [CFMonthlyActivityDay?] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        guard let month = calendar.dateInterval(of: .month, for: today),
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: month.end) else {
+            return []
+        }
+
+        let successfulRecords = records.filter { $0.result == .success }
+        let minutesByDay = Dictionary(grouping: successfulRecords) { record in
+            calendar.startOfDay(for: record.date)
+        }
+        .mapValues { dayRecords in
+            dayRecords.reduce(0) { $0 + durationMinutes(for: $1) }
+        }
+
+        let leadingEmptyDays = mondayBasedWeekdayIndex(for: month.start, calendar: calendar)
+        let daysInMonth = calendar.range(of: .day, in: .month, for: today)?.count ?? 0
+        let populatedCount = leadingEmptyDays + daysInMonth
+        let trailingEmptyDays = (7 - populatedCount % 7) % 7
+        let chartMaximum = max(60, minutesByDay.values.max() ?? 0)
+
+        var cells: [CFMonthlyActivityDay?] = Array(repeating: nil, count: leadingEmptyDays)
+        for dayOffset in 0..<daysInMonth {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: month.start),
+                  date <= lastDay else { continue }
+            let minutes = minutesByDay[calendar.startOfDay(for: date)] ?? 0
+            cells.append(CFMonthlyActivityDay(
+                date: date,
+                durationMinutes: minutes,
+                intensity: minutes == 0 ? 0 : max(0.22, CGFloat(minutes) / CGFloat(chartMaximum))
+            ))
+        }
+        cells.append(contentsOf: Array(repeating: nil, count: trailingEmptyDays))
+        return cells
+    }
+
+    private func mondayBasedWeekdayIndex(for date: Date, calendar: Calendar) -> Int {
+        (calendar.component(.weekday, from: date) + 5) % 7
     }
 
     private var recentSessions: [CFSessionSummary] {
@@ -171,6 +270,55 @@ struct StatsView: View {
             return "\(hours)h"
         }
         return "\(hours)h \(remainingMinutes)m"
+    }
+}
+
+private enum CFStatsActivityRange: String, CaseIterable, Identifiable {
+    case weekly = "Weekly"
+    case monthly = "Monthly"
+
+    var id: Self { self }
+}
+
+private struct CFStatsRangePicker: View {
+    @Binding var selection: CFStatsActivityRange
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(CFStatsActivityRange.allCases) { range in
+                Button {
+                    if reduceMotion {
+                        selection = range
+                    } else {
+                        withAnimation(.interpolatingSpring(
+                            mass: 1.0,
+                            stiffness: 270,
+                            damping: 32,
+                            initialVelocity: 0
+                        )) {
+                            selection = range
+                        }
+                    }
+                } label: {
+                    Text(range.rawValue)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(selection == range ? CFColor.textInverse : CFColor.textSecondary)
+                        .padding(.horizontal, CFSpacing.md)
+                        .frame(height: 32)
+                        .background(selection == range ? CFColor.surfaceSelected : Color.clear)
+                        .clipShape(Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(CFPressableStyle())
+                .accessibilityAddTraits(selection == range ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(CFColor.surfaceSoft)
+        .clipShape(Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Activity range")
     }
 }
 
@@ -266,7 +414,7 @@ private struct CFWeeklyActivityChart: View {
                             .frame(width: 34, height: 112)
 
                         Capsule()
-                            .fill(day.value > 0 ? CFColor.surfaceSelected : CFColor.surfaceSoft)
+                            .fill(CFActivityVisuals.fillColor(for: day.durationMinutes))
                             .frame(width: 34, height: max(16, 112 * day.value))
                     }
 
@@ -285,6 +433,126 @@ private struct CFWeeklyActivityChart: View {
                 .stroke(CFColor.borderSubtle, lineWidth: 0.8)
         }
         .cfShadow(CFCloudLayer.cardShadow)
+    }
+}
+
+private struct CFMonthlyActivityHeatmap: View {
+    var title: String
+    var cells: [CFMonthlyActivityDay?]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.lg) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Heatmap")
+                        .font(CFFont.cardTitle)
+                        .foregroundStyle(CFColor.textPrimary)
+
+                    Text(title)
+                        .font(CFFont.bodySmall)
+                        .foregroundStyle(CFColor.textTertiary)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: CFSpacing.xs), count: 7),
+                spacing: CFSpacing.xs
+            ) {
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
+                    CFHeatmapCell(day: day)
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+        }
+        .padding(20)
+        .background(CFColor.surfacePrimary)
+        .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous)
+                .stroke(CFColor.borderSubtle, lineWidth: 0.8)
+        }
+        .cfShadow(CFCloudLayer.cardShadow)
+    }
+}
+
+private struct CFHeatmapCell: View {
+    var day: CFMonthlyActivityDay?
+
+    var body: some View {
+        VStack(spacing: 1) {
+            if let day {
+                Text(day.dayNumber)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                Text(day.durationText)
+                    .font(.system(size: 10, weight: .medium, design: .rounded).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            } else {
+                Text("—")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+            }
+        }
+        .foregroundStyle(textColor)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(backgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            if day == nil {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(CFColor.borderSubtle.opacity(0.55), lineWidth: 0.6)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private static func fillColor(for intensity: CGFloat) -> Color {
+        switch intensity {
+        case ...0:
+            CFColor.surfaceSoft
+        case ..<0.34:
+            Color(red: 0.78, green: 0.78, blue: 0.81)
+        case ..<0.58:
+            Color(red: 0.58, green: 0.58, blue: 0.62)
+        case ..<0.82:
+            Color(red: 0.38, green: 0.38, blue: 0.42)
+        default:
+            CFColor.surfaceSelected
+        }
+    }
+
+    private var backgroundColor: Color {
+        CFActivityVisuals.fillColor(for: day?.durationMinutes ?? 0)
+    }
+
+    private var textColor: Color {
+        guard let day else { return CFColor.textTertiary }
+        if day.durationMinutes > 120 || day.intensity >= 0.34 {
+            return CFColor.textInverse
+        }
+        return CFColor.textPrimary
+    }
+
+    private var accessibilityLabel: String {
+        guard let day else { return "Outside this month" }
+        return "\(day.date.formatted(.dateTime.month(.abbreviated).day())), \(day.durationText) focus"
+    }
+}
+
+private enum CFActivityVisuals {
+    static let orangeThresholdMinutes = 120
+
+    static func fillColor(for minutes: Int) -> Color {
+        guard minutes > 0 else { return CFColor.surfaceSoft }
+        if minutes > orangeThresholdMinutes {
+            return CFColor.accentTrial
+        }
+
+        let progress = min(1, CGFloat(minutes) / CGFloat(orangeThresholdMinutes))
+        let gray = 0.91 - (progress * 0.64)
+        return Color(red: gray, green: gray, blue: min(0.98, gray + 0.015))
     }
 }
 
@@ -344,6 +612,25 @@ private struct CFActivityDay: Identifiable {
         if hours == 0 { return "\(durationMinutes)m" }
         if remainingMinutes == 0 { return "\(hours)h" }
         return "\(hours)h \(remainingMinutes)m"
+    }
+}
+
+private struct CFMonthlyActivityDay {
+    var date: Date
+    var durationMinutes: Int
+    var intensity: CGFloat
+
+    var dayNumber: String {
+        String(Calendar.current.component(.day, from: date))
+    }
+
+    var durationText: String {
+        let hours = durationMinutes / 60
+        let minutes = durationMinutes % 60
+        if durationMinutes == 0 { return "--" }
+        if hours == 0 { return "\(minutes)m" }
+        if minutes == 0 { return "\(hours)h" }
+        return "\(hours)h\(minutes)m"
     }
 }
 

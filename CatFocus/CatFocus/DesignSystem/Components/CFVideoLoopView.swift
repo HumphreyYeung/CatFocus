@@ -16,6 +16,7 @@ struct CFVideoLoopView: View {
     var startDelay: TimeInterval
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: CFVideoLoopModel
 
     init(
@@ -56,11 +57,11 @@ struct CFVideoLoopView: View {
         .frame(width: size.width, height: size.height)
         .clipped()
         .task {
-            guard !reduceMotion else { return }
+            guard !reduceMotion, scenePhase == .active else { return }
             if startDelay > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(startDelay * 1_000_000_000))
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, scenePhase == .active else { return }
             model.start()
         }
         .onChange(of: reduceMotion) { _, isEnabled in
@@ -68,6 +69,14 @@ struct CFVideoLoopView: View {
                 model.stop()
             } else {
                 model.start()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard !reduceMotion else { return }
+            if phase == .active {
+                model.resume()
+            } else {
+                model.pause()
             }
         }
         .onDisappear {
@@ -123,6 +132,11 @@ private final class CFVideoLoopModel: ObservableObject {
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = 0.75
         let videoPlayer = AVPlayer(playerItem: item)
+        // Mascot videos are visual-only. Explicit muting prevents AVPlayer
+        // from claiming an audio route and interrupting music or podcasts,
+        // even if a future source file accidentally contains an audio track.
+        videoPlayer.isMuted = true
+        videoPlayer.volume = 0
         videoPlayer.actionAtItemEnd = .none
         player = videoPlayer
 
@@ -158,6 +172,24 @@ private final class CFVideoLoopModel: ObservableObject {
         // Start the clock only after the first frame is ready so the video
         // cannot advance past the poster while its layer is mounting.
         player?.play()
+    }
+
+    func pause() {
+        player?.pause()
+    }
+
+    func resume() {
+        guard let player else {
+            start()
+            return
+        }
+
+        if player.currentItem?.status == .failed {
+            stop()
+            start()
+        } else if hasRenderedFirstFrame {
+            player.play()
+        }
     }
 
     func stop() {

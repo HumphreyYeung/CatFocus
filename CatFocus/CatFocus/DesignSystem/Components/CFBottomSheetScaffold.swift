@@ -9,6 +9,8 @@ enum CFBottomSheetActionPlacement: Equatable, Sendable {
 struct CFBottomSheetScaffold<Header: View, Content: View, BottomAction: View>: View {
     var contentBottomPadding: CGFloat = CFSpacing.xxl
     var actionPlacement: CFBottomSheetActionPlacement = .fixedFooter
+    var presentationDetents: Set<PresentationDetent> = [.large]
+    var footerBackgroundOpacity: Double = 1
     var initialScrollID: AnyHashable?
     @ViewBuilder var header: () -> Header
     @ViewBuilder var content: () -> Content
@@ -63,7 +65,7 @@ struct CFBottomSheetScaffold<Header: View, Content: View, BottomAction: View>: V
                 }
             }
         }
-        .presentationDetents([.large])
+        .presentationDetents(presentationDetents)
         .presentationCornerRadius(CFRadius.sheet)
         .presentationDragIndicator(.hidden)
         .presentationContentInteraction(.scrolls)
@@ -75,7 +77,7 @@ struct CFBottomSheetScaffold<Header: View, Content: View, BottomAction: View>: V
             LinearGradient(
                 colors: [
                     CFColor.backgroundPrimary.opacity(0),
-                    CFColor.backgroundPrimary
+                    CFColor.backgroundPrimary.opacity(footerBackgroundOpacity)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -86,7 +88,7 @@ struct CFBottomSheetScaffold<Header: View, Content: View, BottomAction: View>: V
                 .padding(.horizontal, CFSpacing.xl)
                 .padding(.top, CFSpacing.md)
                 .padding(.bottom, CFSpacing.lg)
-                .background(CFColor.backgroundPrimary)
+                .background(CFColor.backgroundPrimary.opacity(footerBackgroundOpacity))
         }
     }
 }

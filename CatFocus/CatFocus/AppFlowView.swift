@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AppFlowView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var entitlementStore = CFEntitlementStore()
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selectedTab: CFAppTab = .focus
@@ -17,6 +18,7 @@ struct AppFlowView: View {
     @AppStorage("onboardingName") private var onboardingName = ""
     @AppStorage("onboardingGoalID") private var onboardingGoalID = ""
     @AppStorage(TrainingRecordsStore.storageKey) private var trainingRecordsData = Data()
+    @AppStorage(PostcardProgressStore.storageKey) private var postcardProgressData = Data()
     @State private var isPresetPresented = false
     @State private var isShareCardPresented = false
     @State private var paywallRequest: CFPaywallRequest?
@@ -26,6 +28,12 @@ struct AppFlowView: View {
     @State private var debugPretrainRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PRETRAIN")
     @State private var debugContractRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_CONTRACT")
     @State private var debugNotificationsRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_NOTIFICATIONS")
+    @State private var focusedCollectionPoster: CFCollectionPosterFocus?
+    @State private var collectionPosterHapticTrigger = 0
+    @State private var arrivingPostcard: PostcardDefinition?
+    @State private var surfacedPostcardIDs = Set<String>()
+    @State private var collectionPosterFrames: [String: CGRect] = [:]
+    @State private var shouldPresentPostcardAfterFocus = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -115,13 +123,17 @@ struct AppFlowView: View {
                 } onPremiumRequested: {
                     paywallRequest = CFPaywallRequest(source: .startTraining)
                 }
+            } else if arrivingPostcard != nil {
+                // Arrival is a focused presentation. Keep the Collection hierarchy
+                // out of the render tree so its artwork cannot bleed through the veil.
+                Color.black.ignoresSafeArea()
             } else {
                     tabContent
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .overlay(alignment: .bottom) {
-                if !shouldShowOnboarding && route == nil {
+                if !shouldShowOnboarding && route == nil && focusedCollectionPoster == nil {
                     CFBottomTabBar(
                         selectedTab: selectedTab,
                         onSelect: { tab in
@@ -131,11 +143,36 @@ struct AppFlowView: View {
                     )
                 }
             }
+            .overlay {
+                if let arrivingPostcard, focusedCollectionPoster == nil {
+                    CFPostcardArrivalOverlay(
+                        postcard: arrivingPostcard,
+                        recipientName: displayName,
+                        onOpen: {
+                            openArrivingPostcard(arrivingPostcard)
+                        },
+                        onDismiss: {
+                            self.arrivingPostcard = nil
+                        }
+                    )
+                } else if let focusedCollectionPoster {
+                    CFCollectionPosterFocusOverlay(
+                        focus: focusedCollectionPoster,
+                        onDismiss: {
+                            self.focusedCollectionPoster = nil
+                        }
+                    )
+                }
+            }
         }
         .id(routeIdentity)
         .transition(.opacity)
         .animation(CFMotionCurve.layoutTransition, value: routeIdentity)
         .animation(CFMotionCurve.componentTransition, value: selectedTab)
+        .sensoryFeedback(
+            .impact(weight: .light, intensity: 0.78),
+            trigger: collectionPosterHapticTrigger
+        )
         .sheet(isPresented: $isPresetPresented) {
             FocusPresetSheet(
                 selectedDurationMinutes: $selectedDurationMinutes,
@@ -171,6 +208,7 @@ struct AppFlowView: View {
                     if case .premiumPose(let pose) = source {
                         selectedTrainingPoseID = pose.rawValue
                     }
+                    unlockPostcardCatalogIfNeeded()
                     paywallRequest = nil
                     if case .startTraining = source {
                         route = .training
@@ -182,13 +220,14 @@ struct AppFlowView: View {
         .overlay {
             if isShareCardPresented {
                 ShareCardOverlay(
-                    cat: .default,
                     catAsset: .staticImage(
                         name: TrainingPose(rawValue: selectedTrainingPoseID)?.assetName
                             ?? TrainingPose.default.assetName
                     ),
                     focusMinutes: totalFocusMinutes,
-                    fitPoints: totalFitPoints,
+                    averageFocusMinutes: averageFocusMinutes,
+                    focusDays: focusDayCount,
+                    sessionCount: completedSessionCount,
                     health: currentFitnessScore,
                     onClose: {
                         isShareCardPresented = false
@@ -198,9 +237,34 @@ struct AppFlowView: View {
         }
         .onAppear {
             updateOrientation(for: route)
+            releaseIdleAudioSessionIfNeeded()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("UITEST_RESET_POSTCARDS") {
+                postcardProgressData = Data()
+            }
+            #endif
+            synchronizePostcardProgress()
+            consumePendingPostcardPresentation()
+            presentUnreadPostcardIfAppropriate()
         }
         .onChange(of: route) { _, newRoute in
             updateOrientation(for: newRoute)
+            guard newRoute == nil, shouldPresentPostcardAfterFocus else { return }
+            shouldPresentPostcardAfterFocus = false
+            selectedTab = .myCat
+            DispatchQueue.main.async {
+                presentUnreadPostcardIfAppropriate()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            releaseIdleAudioSessionIfNeeded()
+            synchronizePostcardProgress()
+            consumePendingPostcardPresentation()
+            presentUnreadPostcardIfAppropriate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CFPostcardNotificationCenter.didTapNotification)) { notification in
+            handlePostcardNotification(notification.object as? String)
         }
         #if DEBUG
         .onAppear {
@@ -224,6 +288,11 @@ struct AppFlowView: View {
 
     private func updateOrientation(for route: AppRoute?) {
         CFOrientationCoordinator.shared.setTrainingOrientationEnabled(route == .training)
+    }
+
+    private func releaseIdleAudioSessionIfNeeded() {
+        guard route == nil, !isPresetPresented else { return }
+        CFWhiteNoisePlayer.releaseAudioSession()
     }
 
     private var routeIdentity: String {
@@ -262,6 +331,10 @@ struct AppFlowView: View {
         TrainingRecordsStore.load(from: trainingRecordsData)
     }
 
+    private var postcardProgress: PostcardProgressV1 {
+        PostcardProgressStore.load(from: postcardProgressData)
+    }
+
     private var resultDurationMinutes: Int {
         if case .result(_, let durationMinutes, _, _) = route {
             return durationMinutes
@@ -273,6 +346,24 @@ struct AppFlowView: View {
         trainingRecords
             .filter { $0.result == .success }
             .reduce(0) { $0 + $1.focusMinutes }
+    }
+
+    private var completedSessionCount: Int {
+        trainingRecords.filter { $0.result == .success }.count
+    }
+
+    private var focusDayCount: Int {
+        let calendar = Calendar.current
+        return Set(
+            trainingRecords
+                .filter { $0.result == .success }
+                .map { calendar.startOfDay(for: $0.date) }
+        ).count
+    }
+
+    private var averageFocusMinutes: Int {
+        guard completedSessionCount > 0 else { return 0 }
+        return Int((Double(totalFocusMinutes) / Double(completedSessionCount)).rounded())
     }
 
     private var totalFitPoints: Int {
@@ -319,6 +410,17 @@ struct AppFlowView: View {
     private func handleTrainingOutcome(_ outcome: TrainingSessionOutcome) {
         let record = TrainingSessionRecord(outcome: outcome)
         trainingRecordsData = TrainingRecordsStore.append(record, to: trainingRecordsData)
+        let previousDeliveredPostcardIDs = postcardProgress.deliveredPostcardIDs
+        let updatedPostcardProgress = PostcardProgressEngine.record(
+            record,
+            progress: postcardProgress,
+            hasPremiumAccess: entitlementStore.hasPremiumAccess
+        )
+        persistPostcardProgress(updatedPostcardProgress)
+        if outcome.state == .success,
+           updatedPostcardProgress.deliveredPostcardIDs != previousDeliveredPostcardIDs {
+            shouldPresentPostcardAfterFocus = true
+        }
         route = .result(
             outcome.state,
             durationMinutes: outcome.plannedMinutes,
@@ -362,17 +464,137 @@ struct AppFlowView: View {
             )
         case .myCat:
             MyCatView(
-                cat: currentCatProfile,
-                selectedPoseID: $selectedTrainingPoseID,
+                recipientName: displayName,
+                postcardProgress: postcardProgress,
                 hasPremiumAccess: entitlementStore.hasPremiumAccess,
-                onPremiumRequested: { pose in
-                    paywallRequest = CFPaywallRequest(source: .premiumPose(pose))
+                onTrialRequested: {
+                    paywallRequest = CFPaywallRequest(source: .myCatPostcards)
+                },
+                onPostcardRead: { postcardID in
+                    let updated = PostcardProgressEngine.markRead(
+                        postcardID,
+                        progress: postcardProgress
+                    )
+                    persistPostcardProgress(updated)
                 },
                 onTabSelected: { tab in
                     selectedTab = tab
+                },
+                focusedPosterID: focusedCollectionPoster?.id,
+                onPosterFocused: { postcard, sourceFrame, sourceAngle in
+                    collectionPosterHapticTrigger += 1
+                    focusedCollectionPoster = CFCollectionPosterFocus(
+                        postcard: postcard,
+                        sourceFrame: sourceFrame,
+                        sourceAngle: sourceAngle
+                    )
+                },
+                onPosterFrameChanged: { postcardID, frame in
+                    collectionPosterFrames[postcardID] = frame
+                    guard var focus = focusedCollectionPoster,
+                          focus.id == postcardID,
+                          focus.sourceFrame != frame else { return }
+                    focus.sourceFrame = frame
+                    focusedCollectionPoster = focus
                 }
             )
         }
+    }
+
+    private func synchronizePostcardProgress() {
+        let previousProgress = postcardProgress
+        let updated = PostcardProgressEngine.prepare(
+            progress: postcardProgress,
+            existingRecords: trainingRecords,
+            hasPremiumAccess: entitlementStore.hasPremiumAccess
+        )
+        persistPostcardProgress(updated)
+
+        guard updated.deliveredPostcardIDs != previousProgress.deliveredPostcardIDs else { return }
+        presentUnreadPostcardIfAppropriate(from: updated)
+    }
+
+    private func unlockPostcardCatalogIfNeeded() {
+        var updated = postcardProgress
+        updated.hasEverUnlockedCatalog = true
+        persistPostcardProgress(updated)
+    }
+
+    private func persistPostcardProgress(_ updated: PostcardProgressV1) {
+        if updated != postcardProgress {
+            postcardProgressData = PostcardProgressStore.save(updated)
+        }
+
+        Task {
+            await CFPostcardNotificationScheduler.schedule(updated.pendingPostcard)
+        }
+    }
+
+    private func handlePostcardNotification(_ postcardID: String?) {
+        synchronizePostcardProgress()
+        guard let postcardID else { return }
+        UserDefaults.standard.removeObject(forKey: CFPostcardNotificationCenter.pendingPostcardIDKey)
+        presentPostcard(PostcardCatalog.definition(id: postcardID))
+    }
+
+    private func openArrivingPostcard(_ postcard: PostcardDefinition) {
+        let sourceFrame = collectionPosterFrames[postcard.id] ?? {
+            let screenBounds = UIScreen.main.bounds
+            return CGRect(
+                x: screenBounds.midX - 112,
+                y: screenBounds.midY - 82,
+                width: 224,
+                height: 164
+            )
+        }()
+        collectionPosterHapticTrigger += 1
+        focusedCollectionPoster = CFCollectionPosterFocus(
+            postcard: postcard,
+            sourceFrame: sourceFrame,
+            sourceAngle: -0.8
+        )
+        let updated = PostcardProgressEngine.markRead(
+            postcard.id,
+            progress: postcardProgress
+        )
+        persistPostcardProgress(updated)
+        arrivingPostcard = nil
+    }
+
+    private func consumePendingPostcardPresentation() {
+        guard let postcardID = UserDefaults.standard.string(
+            forKey: CFPostcardNotificationCenter.pendingPostcardIDKey
+        ) else { return }
+        UserDefaults.standard.removeObject(forKey: CFPostcardNotificationCenter.pendingPostcardIDKey)
+        handlePostcardNotification(postcardID)
+    }
+
+    private func presentUnreadPostcardIfAppropriate(from progress: PostcardProgressV1? = nil) {
+        let currentProgress = progress ?? postcardProgress
+        guard arrivingPostcard == nil,
+              focusedCollectionPoster == nil,
+              paywallRequest == nil,
+              route == nil,
+              !shouldShowOnboarding else { return }
+
+        guard let postcard = currentProgress.deliveredPostcardIDs
+            .compactMap(PostcardCatalog.definition(id:))
+            .first(where: {
+                !currentProgress.readPostcardIDs.contains($0.id)
+                    && !surfacedPostcardIDs.contains($0.id)
+            })
+        else { return }
+
+        presentPostcard(postcard)
+    }
+
+    private func presentPostcard(_ postcard: PostcardDefinition?) {
+        guard let postcard,
+              arrivingPostcard == nil,
+              focusedCollectionPoster == nil else { return }
+        surfacedPostcardIDs.insert(postcard.id)
+        selectedTab = .myCat
+        arrivingPostcard = postcard
     }
 }
 

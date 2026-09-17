@@ -2,10 +2,11 @@ import SwiftUI
 import UIKit
 
 struct ShareCardOverlay: View {
-    var cat: CatProfile = .default
     var catAsset: CFCatAsset = .staticImage(name: "luna-success")
     var focusMinutes: Int = 45
-    var fitPoints: Int = 120
+    var averageFocusMinutes: Int = 45
+    var focusDays: Int = 1
+    var sessionCount: Int = 1
     var health: FitnessScore = FitnessScore(98)
     var onClose: () -> Void = {}
     @State private var isSavingCard = false
@@ -20,12 +21,33 @@ struct ShareCardOverlay: View {
                 CFColor.backgroundDimmed
                     .ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: CFSpacing.lg) {
-                        shareCard(
-                            width: min(proxy.size.width - 48, 354),
-                            height: min(650, max(548, proxy.size.height - proxy.safeAreaInsets.top - proxy.safeAreaInsets.bottom - 172))
-                        )
+                VStack(spacing: CFSpacing.lg) {
+                        ZStack(alignment: .topTrailing) {
+                            shareCard(
+                                width: min(proxy.size.width - 48, 354),
+                                // Leave room for the action tray and the device's
+                                // home-indicator area in the on-screen preview.
+                                // Exported cards keep their independent 650pt size.
+                                height: min(620, max(520, proxy.size.height - proxy.safeAreaInsets.top - proxy.safeAreaInsets.bottom - 208)),
+                                showsShadow: true
+                            )
+
+                            Button(action: onClose) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                                    .frame(width: 40, height: 40)
+                                    .background(Color.black.opacity(0.46))
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .frame(width: 44, height: 44)
+                            // Align the button's trailing edge with the card while
+                            // keeping it clearly separated above the card surface.
+                            .offset(x: 0, y: -52)
+                            .accessibilityLabel("Close share card")
+                        }
+                        .padding(.top, 12)
 
                         Text("SHARE TO WORLD")
                             .font(.system(size: 10, weight: .black, design: .rounded))
@@ -34,11 +56,10 @@ struct ShareCardOverlay: View {
                             .padding(.top, CFSpacing.lg)
 
                         shareActionsTray
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, max(24, proxy.safeAreaInsets.top + 16))
-                    .padding(.bottom, max(24, proxy.safeAreaInsets.bottom + 16))
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, max(24, proxy.safeAreaInsets.top + 16))
+                .padding(.bottom, max(24, proxy.safeAreaInsets.bottom + 16))
             }
         }
         .alert("Card Saved", isPresented: $isCardSaved) {
@@ -61,48 +82,35 @@ struct ShareCardOverlay: View {
         }
     }
 
-    private func shareCard(width: CGFloat, height: CGFloat) -> some View {
+    private func shareCard(width: CGFloat, height: CGFloat, showsShadow: Bool = true) -> some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-
-                Button(action: onClose) {
-                    CFIcon.xmark.image
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundStyle(CFColor.textPrimary)
-                        .frame(width: 40, height: 40)
-                        .background(CFColor.surfaceSoft)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close share card")
-            }
-            .padding(.top, CFSpacing.md)
-            .padding(.trailing, CFSpacing.md)
-
             CFCatHero(asset: catAsset, size: .medium)
                 .frame(width: 246, height: 196)
                 .padding(.top, CFSpacing.md)
 
             Spacer(minLength: CFSpacing.xl)
 
-            Text("\"THANK YOU FOR STAYING FOCUSED. I\nFEEL MUCH STRONGER NOW!\"")
+            Text("\"THANK YOU FOR STAYING FOCUSED. I FEEL MUCH STRONGER NOW!\"")
                 .font(.system(size: 14, weight: .black, design: .rounded).italic())
                 .foregroundStyle(CFColor.textPrimary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .minimumScaleFactor(0.85)
+                .lineSpacing(2)
+                .lineLimit(3)
+                .minimumScaleFactor(0.7)
                 .accessibilityLabel("THANK YOU FOR STAYING FOCUSED. I FEEL MUCH STRONGER NOW!")
 
             Spacer(minLength: CFSpacing.xl)
 
-            HStack(spacing: 0) {
-                CFShareMetric(label: "Focus Time", value: "\(focusMinutes)", suffix: "min")
-                CFShareMetric(
-                    label: "Fit Points",
-                    value: fitPoints > 0 ? "+\(fitPoints)" : "\(fitPoints)"
-                )
-                CFShareMetric(label: "Health", value: "\(health.value)", suffix: "%")
+            VStack(spacing: CFSpacing.lg) {
+                HStack(spacing: 0) {
+                    CFShareMetric(label: "Focus Time", value: formattedDuration(focusMinutes))
+                    CFShareMetric(label: "Avg", value: formattedDuration(averageFocusMinutes))
+                }
+
+                HStack(spacing: 0) {
+                    CFShareMetric(label: "Focus Days", value: "\(focusDays)")
+                    CFShareMetric(label: "Sessions", value: "\(sessionCount)")
+                }
             }
             .padding(.horizontal, 28)
 
@@ -114,18 +122,17 @@ struct ShareCardOverlay: View {
 
             HStack {
                 HStack(spacing: CFSpacing.sm) {
-                    CFCatAppIconMark()
+                    Image("ShareCardLogo")
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("PAW-MODORO")
+                        Text("CATFOCUS")
                             .font(.system(size: 10, weight: .black, design: .rounded))
                             .foregroundStyle(CFColor.textPrimary)
-
-                        Text("ONLY ON IOS")
-                            .font(.system(size: 8, weight: .semibold, design: .rounded))
-                            .tracking(1.1)
-                            .foregroundStyle(CFColor.textSecondary)
                     }
                 }
 
@@ -140,11 +147,16 @@ struct ShareCardOverlay: View {
         .frame(width: width, height: height)
         .background(CFColor.surfacePrimary)
         .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
-        .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 10)
+        .shadow(
+            color: showsShadow ? Color.black.opacity(0.12) : .clear,
+            radius: showsShadow ? 16 : 0,
+            x: 0,
+            y: showsShadow ? 10 : 0
+        )
     }
 
     private var shareActionsTray: some View {
-            HStack(spacing: CFSpacing.lg) {
+        HStack(spacing: CFSpacing.xxl) {
             CFShareActionButton(
                 icon: .download,
                 title: isSavingCard ? "Saving" : "Save",
@@ -152,9 +164,7 @@ struct ShareCardOverlay: View {
                 isLoading: isSavingCard,
                 action: saveCard
             )
-            CFShareActionButton(icon: .camera, title: "Instagram", accessibilityLabel: "Instagram share card", action: shareCard)
-            CFShareActionButton(icon: .music, title: "TikTok", accessibilityLabel: "TikTok share card", action: shareCard)
-            CFShareActionButton(icon: .message, title: "Message", accessibilityLabel: "Message share card", action: shareCard)
+            CFShareActionButton(icon: .share, title: "Share", accessibilityLabel: "Share focus card", action: shareCard)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, CFSpacing.xxl)
@@ -166,7 +176,7 @@ struct ShareCardOverlay: View {
     }
 
     private func renderShareCard() -> UIImage? {
-        let renderer = ImageRenderer(content: shareCard(width: 354, height: 650))
+        let renderer = ImageRenderer(content: shareCard(width: 354, height: 650, showsShadow: false))
         renderer.scale = UIScreen.main.scale
         return renderer.uiImage
     }
@@ -196,6 +206,14 @@ struct ShareCardOverlay: View {
         shareImage = image
         isShareSheetPresented = true
     }
+
+    private func formattedDuration(_ minutes: Int) -> String {
+        guard minutes > 0 else { return "0m" }
+        if minutes >= 60 {
+            return String(format: "%.1fh", Double(minutes) / 60)
+        }
+        return "\(minutes)m"
+    }
 }
 
 private struct CFShareMetric: View {
@@ -206,10 +224,10 @@ private struct CFShareMetric: View {
     var body: some View {
         VStack(spacing: CFSpacing.sm) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .black, design: .rounded))
+                .font(.system(size: 8, weight: .black, design: .rounded))
                 .foregroundStyle(CFColor.textSecondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.65)
 
             HStack(alignment: .firstTextBaseline, spacing: 1) {
                 Text(value)
@@ -295,70 +313,6 @@ private struct CFAppStoreBadge: View {
         .frame(height: 36)
         .background(CFColor.surfaceSelected)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    }
-}
-
-private struct CFCatAppIconMark: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(CFColor.surfaceSelected)
-
-            CFCatFaceMark()
-                .frame(width: 23, height: 19)
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-private struct CFCatFaceMark: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = min(proxy.size.width / 32, proxy.size.height / 26)
-
-            ZStack {
-                Circle()
-                    .fill(CFColor.surfacePrimary)
-                    .frame(width: 22, height: 20)
-
-                HStack(spacing: 12) {
-                    CFShareTriangle()
-                        .fill(CFColor.surfacePrimary)
-                        .frame(width: 8, height: 10)
-                        .rotationEffect(.degrees(-16))
-
-                    CFShareTriangle()
-                        .fill(CFColor.surfacePrimary)
-                        .frame(width: 8, height: 10)
-                        .rotationEffect(.degrees(16))
-                }
-                .offset(y: -9)
-
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(CFColor.surfaceSelected)
-                        .frame(width: 3, height: 3)
-                    Circle()
-                        .fill(CFColor.surfaceSelected)
-                        .frame(width: 3, height: 3)
-                }
-                .offset(y: -1)
-            }
-            .frame(width: 32, height: 26)
-            .scaleEffect(scale)
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-    }
-}
-
-private struct CFShareTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 

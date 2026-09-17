@@ -17,6 +17,7 @@ struct FocusHomeView: View {
     var onSettings: () -> Void = {}
     var onTabSelected: (CFAppTab) -> Void = { _ in }
     @StateObject private var homeCatRotation = CFHomeCatRotationStore()
+    @State private var isHealthExplanationPresented = false
     private let homeCatRotationTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -68,11 +69,27 @@ struct FocusHomeView: View {
         .onReceive(homeCatRotationTimer) { now in
             homeCatRotation.refreshIfNeeded(now: now)
         }
+        .sheet(isPresented: $isHealthExplanationPresented) {
+            healthRulesSheet
+        }
+    }
+
+    private var healthRulesSheet: some View {
+        CFHealthRulesSheet(score: state.cat.fitnessScore)
     }
 
     private var header: some View {
         HStack {
-            CFFitnessStatusPill(score: state.cat.fitnessScore)
+            Button {
+                isHealthExplanationPresented = true
+            } label: {
+                CFFitnessStatusPill(
+                    score: state.cat.fitnessScore,
+                    showsInfoIndicator: true
+                )
+            }
+            .buttonStyle(CFPressableStyle())
+            .accessibilityHint("Explains how Luna's health changes")
 
             Spacer()
 
@@ -122,6 +139,120 @@ struct FocusHomeView: View {
     }
 }
 
+private struct CFHealthRulesSheet: View {
+    let score: FitnessScore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        CFBottomSheetScaffold(
+            presentationDetents: [.fraction(0.66)],
+            footerBackgroundOpacity: 0.86
+        ) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: CFSpacing.xs) {
+                    Text("Luna's Health")
+                        .font(CFFont.screenTitle)
+                        .foregroundStyle(CFColor.textPrimary)
+
+                    Text("Your current health is \(score.value)%")
+                        .font(CFFont.bodySmall)
+                        .foregroundStyle(CFColor.textSecondary)
+                }
+
+                Spacer(minLength: CFSpacing.md)
+
+                CFFitnessStatusPill(score: score, showsInfoIndicator: false)
+                    .fixedSize()
+            }
+        } content: {
+            VStack(alignment: .leading, spacing: CFSpacing.xl) {
+                Text("How it works")
+                    .font(CFFont.cardTitle)
+                    .foregroundStyle(CFColor.textPrimary)
+
+                VStack(spacing: 0) {
+                    CFHealthRuleRow(
+                        icon: "bolt.fill",
+                        title: "Focus to build health",
+                        detail: "Every 10 Fit Points adds 1 health point."
+                    )
+
+                    Divider()
+
+                    CFHealthRuleRow(
+                        icon: "moon.zzz.fill",
+                        title: "Rest affects the score",
+                        detail: "After 1 rest day, inactivity lowers health by 2 each day."
+                    )
+
+                    Divider()
+
+                    CFHealthRuleRow(
+                        icon: "arrow.down.to.line",
+                        title: "There is a floor",
+                        detail: "Health never drops below 20%."
+                    )
+                }
+                .padding(.horizontal, CFSpacing.lg)
+                .background(CFColor.surfaceWhisper)
+                .clipShape(RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous)
+                        .stroke(CFColor.borderSubtle, lineWidth: 0.8)
+                }
+
+                VStack(alignment: .leading, spacing: CFSpacing.sm) {
+                    Text("What changes")
+                        .font(CFFont.cardTitle)
+                        .foregroundStyle(CFColor.textPrimary)
+
+                    Text("Health changes Luna's mood, videos, and messages. Your letters and features are always safe.")
+                        .font(CFFont.bodySmall)
+                        .foregroundStyle(CFColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(CFSpacing.lg)
+                .background(CFColor.surfaceSoft)
+                .clipShape(RoundedRectangle(cornerRadius: CFRadius.card, style: .continuous))
+            }
+        } bottomAction: {
+            CFPrimaryButton(title: "OK", action: { dismiss() })
+        }
+        .presentationDragIndicator(.hidden)
+    }
+}
+
+private struct CFHealthRuleRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: CFSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(CFColor.accentTrial)
+                .frame(width: 34, height: 34)
+                .background(CFColor.accentTrial.opacity(0.14))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(CFFont.body.weight(.semibold))
+                    .foregroundStyle(CFColor.textPrimary)
+
+                Text(detail)
+                    .font(CFFont.bodySmall)
+                    .foregroundStyle(CFColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, CFSpacing.lg)
+    }
+}
+
 enum CFAppTab: String, CaseIterable, Equatable, Sendable {
     case focus = "Focus"
     case stats = "Stats"
@@ -140,6 +271,13 @@ enum CFAppTab: String, CaseIterable, Equatable, Sendable {
 }
 
 struct CFBottomTabBar: View {
+    fileprivate enum Layout {
+        static let itemWidth: CGFloat = 58
+        static let itemHeight: CGFloat = 44
+        static let selectionHeight: CGFloat = 40
+        static let itemSpacing: CGFloat = CFSpacing.xs
+    }
+
     enum Variant {
         case standard
         case floating
@@ -155,7 +293,7 @@ struct CFBottomTabBar: View {
             if variant == .floating {
                 Capsule()
                     .fill(CFColor.surfaceSelection)
-                    .frame(width: 54, height: 40)
+                    .frame(width: Layout.itemWidth, height: Layout.selectionHeight)
                     .offset(x: floatingSelectionOffset)
                     .animation(
                         reduceMotion ? nil : CFMotionCurve.componentTransition,
@@ -163,7 +301,7 @@ struct CFBottomTabBar: View {
                     )
             }
 
-            HStack(spacing: variant == .floating ? CFSpacing.xs : 30) {
+            HStack(spacing: variant == .floating ? Layout.itemSpacing : 30) {
                 ForEach(CFAppTab.allCases, id: \.self) { tab in
                     CFBottomTabItem(tab: tab, isSelected: tab == selectedTab, isFloating: variant == .floating) {
                         onSelect(tab)
@@ -187,7 +325,7 @@ struct CFBottomTabBar: View {
 
     private var floatingSelectionOffset: CGFloat {
         let selectedIndex = CFAppTab.allCases.firstIndex(of: selectedTab) ?? 0
-        return CGFloat(selectedIndex) * (58 + CFSpacing.xs)
+        return CGFloat(selectedIndex) * (Layout.itemWidth + Layout.itemSpacing)
     }
 }
 
@@ -203,6 +341,7 @@ private struct CFBottomTabItem: View {
             VStack(spacing: 0) {
                 tab.icon.image
                     .font(.system(size: 17, weight: .bold))
+                    .frame(width: 20, height: 20)
 
                 if !isFloating {
                     Text(tab.rawValue)
@@ -210,8 +349,8 @@ private struct CFBottomTabItem: View {
                 }
             }
             .foregroundStyle(isSelected ? CFColor.textPrimary : CFColor.textTertiary)
-            .frame(width: isFloating ? 58 : 68)
-            .frame(height: isFloating ? 44 : 48)
+            .frame(width: isFloating ? CFBottomTabBar.Layout.itemWidth : 68)
+            .frame(height: isFloating ? CFBottomTabBar.Layout.itemHeight : 48)
             .contentShape(Rectangle())
             .scaleEffect(isSelected && !reduceMotion ? 1.04 : 1)
             .animation(reduceMotion ? nil : CFMotionCurve.instantFeedback, value: isSelected)

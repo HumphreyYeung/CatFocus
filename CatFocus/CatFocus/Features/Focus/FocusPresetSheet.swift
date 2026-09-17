@@ -11,6 +11,7 @@ enum FocusPresetSection: String, Identifiable {
 
 struct FocusPresetSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedDurationMinutes: Int
     @Binding var shortBreakMinutes: Int
     @Binding var longBreakMinutes: Int
@@ -28,7 +29,7 @@ struct FocusPresetSheet: View {
     @State private var draftCustomFocusModeName: String
     @State private var selectedShortBreakMinutes: Int
     @State private var selectedLongBreakMinutes: Int
-    @State private var previewAudioPlayer = CFWhiteNoisePlayer()
+    @StateObject private var previewAudioPlayer = CFWhiteNoisePlayer()
     @State private var isCustomModeEditorPresented = false
     @State private var isPoseListExpanded = false
 
@@ -92,6 +93,15 @@ struct FocusPresetSheet: View {
         }
         .onDisappear {
             previewAudioPlayer.stop()
+            previewAudioPlayer.deactivate()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                previewAudioPlayer.resume()
+            } else {
+                previewAudioPlayer.pause()
+                previewAudioPlayer.deactivate()
+            }
         }
         .sheet(isPresented: $isCustomModeEditorPresented) {
             CFCustomFocusModeEditor(name: $draftCustomFocusModeName) {
@@ -115,17 +125,25 @@ struct FocusPresetSheet: View {
 
             Button {
                 previewAudioPlayer.stop()
+                previewAudioPlayer.deactivate()
                 dismiss()
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .black))
-                    .foregroundStyle(CFColor.textPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(CFColor.surfaceSoft)
-                    .clipShape(Circle())
+                HStack(spacing: CFSpacing.xs) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+
+                    Text("Done")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(CFColor.textInverse)
+                .padding(.horizontal, 12)
+                .frame(minWidth: 44, minHeight: 32)
+                .background(CFCloudLayer.graphite)
+                .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close preset")
+            .buttonStyle(CFPressableStyle())
+            .accessibilityLabel("Done")
+            .offset(y: -2)
         }
     }
 
@@ -161,9 +179,9 @@ struct FocusPresetSheet: View {
         VStack(alignment: .leading, spacing: CFSpacing.lg) {
             sectionTitle("Timer Configuration")
 
-            VStack(spacing: CFSpacing.md) {
+            VStack(spacing: 0) {
                 CFTimeOptionRow(
-                    title: "Focus Duration",
+                    title: "Focus",
                     selection: Binding(
                         get: { draftDurationMinutes },
                         set: {
@@ -173,6 +191,10 @@ struct FocusPresetSheet: View {
                     ),
                     choices: durations
                 )
+
+                Divider()
+                    .overlay(CFColor.divider)
+
                 CFTimeOptionRow(
                     title: "Short Break",
                     selection: Binding(
@@ -184,6 +206,10 @@ struct FocusPresetSheet: View {
                     ),
                     choices: [5, 10, 15]
                 )
+
+                Divider()
+                    .overlay(CFColor.divider)
+
                 CFTimeOptionRow(
                     title: "Long Break",
                     selection: Binding(
@@ -196,8 +222,8 @@ struct FocusPresetSheet: View {
                     choices: [10, 15, 20]
                 )
             }
-            .padding(.horizontal, CFSpacing.xl)
-            .padding(.vertical, CFSpacing.lg)
+            .padding(.horizontal, CFSpacing.lg)
+            .padding(.vertical, CFSpacing.sm)
             .background(CFColor.surfacePrimary)
             .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
             .overlay {
@@ -232,16 +258,18 @@ struct FocusPresetSheet: View {
                 }
             }
 
-            if !isPoseListExpanded && TrainingPose.allCases.count > collapsedPoseCount {
+            if TrainingPose.allCases.count > collapsedPoseCount {
                 Button {
                     withAnimation(CFMotionCurve.componentTransition) {
-                        isPoseListExpanded = true
+                        isPoseListExpanded.toggle()
                     }
                 } label: {
                     HStack(spacing: CFSpacing.xs) {
-                        Text("Show all \(TrainingPose.allCases.count) poses")
+                        Text(isPoseListExpanded
+                            ? "Show fewer poses"
+                            : "Show all \(TrainingPose.allCases.count) poses")
                             .font(CFFont.labelCaps)
-                        Image(systemName: "chevron.down")
+                        Image(systemName: isPoseListExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 11, weight: .bold))
                     }
                     .foregroundStyle(CFColor.textSecondary)
@@ -251,7 +279,7 @@ struct FocusPresetSheet: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(CFPressableStyle())
-                .accessibilityLabel("Show all training poses")
+                .accessibilityLabel(isPoseListExpanded ? "Show fewer training poses" : "Show all training poses")
             }
         }
     }
@@ -263,7 +291,9 @@ struct FocusPresetSheet: View {
 
         var poses = Array(TrainingPose.allCases.prefix(collapsedPoseCount))
         if let selectedPose = TrainingPose(rawValue: draftTrainingPoseID), !poses.contains(selectedPose) {
-            poses.append(selectedPose)
+            // Keep the selected tile visible without creating a partial row.
+            // The collapsed grid is always exactly two complete rows.
+            poses[poses.index(before: poses.endIndex)] = selectedPose
         }
         return poses
     }
@@ -280,9 +310,9 @@ struct FocusPresetSheet: View {
                         state: sound.id == draftWhiteNoiseID ? .selected : .normal,
                         size: .sound
                     ) {
+                        previewAudioPlayer.play(sound: sound)
                         draftWhiteNoiseID = sound.id
                         selectedWhiteNoiseID = sound.id
-                        previewAudioPlayer.play(sound: sound)
                     }
                 }
             }
