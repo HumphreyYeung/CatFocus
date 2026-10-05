@@ -17,9 +17,9 @@ struct CatFocusTests {
         let store = CFEntitlementStore(defaults: defaults, arguments: [])
 
         #expect(store.hasPremiumAccess == false)
-        #expect(store.purchase(plan: .weekly) == true)
+        #expect(store.purchase(plan: .annual) == true)
         #expect(store.hasPremiumAccess == true)
-        #expect(store.selectedPlan == .weekly)
+        #expect(store.selectedPlan == .annual)
     }
 
     @Test @MainActor func entitlementPersistsAndRestoreDoesNotGrantAccess() {
@@ -28,11 +28,11 @@ struct CatFocusTests {
         defaults.removePersistentDomain(forName: suiteName)
 
         let purchasedStore = CFEntitlementStore(defaults: defaults, arguments: [])
-        _ = purchasedStore.purchase(plan: .weekly)
+        _ = purchasedStore.purchase(plan: .lifetime)
 
         let restartedStore = CFEntitlementStore(defaults: defaults, arguments: [])
         #expect(restartedStore.hasPremiumAccess == true)
-        #expect(restartedStore.selectedPlan == .weekly)
+        #expect(restartedStore.selectedPlan == .lifetime)
 
         defaults.removeObject(forKey: "hasPremiumAccess")
         let lockedStore = CFEntitlementStore(defaults: defaults, arguments: [])

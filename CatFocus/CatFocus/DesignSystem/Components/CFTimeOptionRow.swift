@@ -7,7 +7,7 @@ struct CFTimeOptionRow: View {
 
     var body: some View {
         HStack(spacing: CFSpacing.sm) {
-            Text(title.uppercased())
+            Text(CFLocalization.text(title).uppercased())
                 .font(CFFont.labelCaps)
                 .tracking(1.2)
                 .foregroundStyle(CFColor.textSecondary)
@@ -57,7 +57,7 @@ struct CFTimeOptionRow: View {
                         }
                 )
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(title)
+                .accessibilityLabel(CFLocalization.text(title))
                 .accessibilityValue("\(selection) minutes")
                 .accessibilityAdjustableAction(adjustSelection)
             }
@@ -68,7 +68,8 @@ struct CFTimeOptionRow: View {
                 .foregroundStyle(CFColor.textPrimary)
                 .monospacedDigit()
                 .lineLimit(1)
-                .frame(width: 58, alignment: .trailing)
+                .minimumScaleFactor(0.75)
+                .frame(width: 78, alignment: .trailing)
         }
         .frame(minHeight: 48)
     }

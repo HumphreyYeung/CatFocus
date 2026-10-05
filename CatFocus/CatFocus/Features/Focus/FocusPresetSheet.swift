@@ -29,7 +29,7 @@ struct FocusPresetSheet: View {
     @State private var draftCustomFocusModeName: String
     @State private var selectedShortBreakMinutes: Int
     @State private var selectedLongBreakMinutes: Int
-    @StateObject private var previewAudioPlayer = CFWhiteNoisePlayer()
+    @StateObject private var previewAudioPlayer = CFWhiteNoisePlayer(debugName: "preset-preview")
     @State private var isCustomModeEditorPresented = false
     @State private var isPoseListExpanded = false
 
@@ -92,8 +92,10 @@ struct FocusPresetSheet: View {
             EmptyView()
         }
         .onDisappear {
+            #if DEBUG
+            print("[CFAudioFlow] preset sheet onDisappear")
+            #endif
             previewAudioPlayer.stop()
-            previewAudioPlayer.deactivate()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -124,6 +126,9 @@ struct FocusPresetSheet: View {
             Spacer()
 
             Button {
+                #if DEBUG
+                print("[CFAudioFlow] preset Done tapped")
+                #endif
                 previewAudioPlayer.stop()
                 previewAudioPlayer.deactivate()
                 dismiss()
@@ -266,8 +271,8 @@ struct FocusPresetSheet: View {
                 } label: {
                     HStack(spacing: CFSpacing.xs) {
                         Text(isPoseListExpanded
-                            ? "Show fewer poses"
-                            : "Show all \(TrainingPose.allCases.count) poses")
+                            ? CFLocalization.text("Show fewer poses")
+                            : CFLocalization.format("Show all %lld poses", TrainingPose.allCases.count))
                             .font(CFFont.labelCaps)
                         Image(systemName: isPoseListExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 11, weight: .bold))
@@ -310,6 +315,9 @@ struct FocusPresetSheet: View {
                         state: sound.id == draftWhiteNoiseID ? .selected : .normal,
                         size: .sound
                     ) {
+                        #if DEBUG
+                        print("[CFAudioFlow] preset sound selected -> \(sound.id)")
+                        #endif
                         previewAudioPlayer.play(sound: sound)
                         draftWhiteNoiseID = sound.id
                         selectedWhiteNoiseID = sound.id
@@ -350,6 +358,10 @@ enum PresetFocusMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        CFLocalization.text(titleKey)
+    }
+
+    private var titleKey: String {
         switch self {
         case .add:
             "Add"

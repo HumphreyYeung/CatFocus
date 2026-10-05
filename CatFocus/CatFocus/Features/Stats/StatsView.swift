@@ -47,13 +47,13 @@ struct StatsView: View {
             CFMetricCard(
                 label: "Focus Time",
                 value: focusTimeText,
-                footnote: "Avg \(averageFocusTimeText)",
+                footnote: CFLocalization.format("Avg %@", averageFocusTimeText),
                 tone: .success
             )
             CFMetricCard(
                 label: "Focus Days",
                 value: "\(completedFocusDayCount)",
-                footnote: "\(completedSessionCount) sessions"
+                footnote: CFLocalization.format("%lld sessions", completedSessionCount)
             )
         }
     }
@@ -147,13 +147,13 @@ struct StatsView: View {
 
     private var focusTimeText: String {
         if totalCompletedMinutes >= 60 {
-            return String(format: "%.1fh", Double(totalCompletedMinutes) / 60)
+            return CFLocalization.format("%.1f h", Double(totalCompletedMinutes) / 60)
         }
-        return "\(totalCompletedMinutes)m"
+        return CFLocalization.duration(minutes: totalCompletedMinutes)
     }
 
     private var averageFocusTimeText: String {
-        guard completedSessionCount > 0 else { return "0m" }
+        guard completedSessionCount > 0 else { return CFLocalization.duration(minutes: 0) }
         return formattedDuration(Int((Double(totalCompletedMinutes) / Double(completedSessionCount)).rounded()))
     }
 
@@ -172,7 +172,7 @@ struct StatsView: View {
             let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
             let minutes = dailyMinutes[index]
             return CFActivityDay(
-                label: date.formatted(.dateTime.weekday(.abbreviated)),
+                label: date.formatted(.dateTime.weekday(.abbreviated).locale(CFLocalization.locale)),
                 value: min(1, CGFloat(minutes) / CGFloat(chartMaximum)),
                 durationMinutes: minutes
             )
@@ -180,7 +180,7 @@ struct StatsView: View {
     }
 
     private var monthlyActivityTitle: String {
-        Date.now.formatted(.dateTime.month(.wide).year())
+        Date.now.formatted(.dateTime.month(.wide).year().locale(CFLocalization.locale))
     }
 
     private var monthlyActivityCells: [CFMonthlyActivityDay?] {
@@ -226,15 +226,15 @@ struct StatsView: View {
 
     private var recentSessions: [CFSessionSummary] {
         records.prefix(5).map { record in
-            let resultTitle = record.result == .success ? "Focus Session" : "Abandoned Session"
+            let resultTitle = CFLocalization.text(record.result == .success ? "Focus Session" : "Abandoned Session")
             let dateText = sessionDateText(record.date)
-            let detail = "\(dateText) · \(formattedDuration(durationMinutes(for: record))) session"
+            let detail = CFLocalization.format("%@ · %@ session", dateText, formattedDuration(durationMinutes(for: record)))
             let points = record.fitPoints > 0 ? "+\(record.fitPoints)" : "\(record.fitPoints)"
             return CFSessionSummary(
                 icon: record.result == .success ? .focus : .myCat,
                 title: resultTitle,
                 detail: detail,
-                pointsText: "\(points) Fit Points",
+                pointsText: CFLocalization.format("%@ Fit Points", points),
                 tone: record.result == .success ? .success : .danger
             )
         }
@@ -252,24 +252,14 @@ struct StatsView: View {
         }
 
         if calendar.component(.year, from: date) == calendar.component(.year, from: .now) {
-            return date.formatted(.dateTime.month(.abbreviated).day())
+            return date.formatted(.dateTime.month(.abbreviated).day().locale(CFLocalization.locale))
         }
 
-        return date.formatted(.dateTime.year().month(.abbreviated).day())
+        return date.formatted(.dateTime.year().month(.abbreviated).day().locale(CFLocalization.locale))
     }
 
     private func formattedDuration(_ minutes: Int) -> String {
-        let safeMinutes = max(0, minutes)
-        let hours = safeMinutes / 60
-        let remainingMinutes = safeMinutes % 60
-
-        if hours == 0 {
-            return "\(safeMinutes)m"
-        }
-        if remainingMinutes == 0 {
-            return "\(hours)h"
-        }
-        return "\(hours)h \(remainingMinutes)m"
+        return CFLocalization.duration(minutes: minutes)
     }
 }
 
@@ -301,7 +291,7 @@ private struct CFStatsRangePicker: View {
                         }
                     }
                 } label: {
-                    Text(range.rawValue)
+                    Text(CFLocalization.text(range.rawValue))
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(selection == range ? CFColor.textInverse : CFColor.textSecondary)
                         .padding(.horizontal, CFSpacing.md)
@@ -339,7 +329,7 @@ private struct CFMetricCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(label.uppercased())
+            Text(CFLocalization.text(label).uppercased())
                 .font(CFFont.caption)
                 .tracking(1.1)
                 .foregroundStyle(CFColor.textSecondary)
@@ -381,7 +371,7 @@ private struct CFMetricStatusLabel: View {
                 .font(.system(size: 13, weight: .black))
                 .foregroundStyle(tone.iconColor)
 
-            Text(text.uppercased())
+            Text(CFLocalization.text(text).uppercased())
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .tracking(0.9)
                 .foregroundStyle(CFColor.textSecondary)
@@ -536,8 +526,8 @@ private struct CFHeatmapCell: View {
     }
 
     private var accessibilityLabel: String {
-        guard let day else { return "Outside this month" }
-        return "\(day.date.formatted(.dateTime.month(.abbreviated).day())), \(day.durationText) focus"
+        guard let day else { return CFLocalization.text("Outside this month") }
+        return CFLocalization.format("%@, %@ focus", day.date.formatted(.dateTime.month(.abbreviated).day().locale(CFLocalization.locale)), day.durationText)
     }
 }
 
@@ -607,11 +597,7 @@ private struct CFActivityDay: Identifiable {
     var durationMinutes: Int
 
     var durationText: String {
-        let hours = durationMinutes / 60
-        let remainingMinutes = durationMinutes % 60
-        if hours == 0 { return "\(durationMinutes)m" }
-        if remainingMinutes == 0 { return "\(hours)h" }
-        return "\(hours)h \(remainingMinutes)m"
+        CFLocalization.duration(minutes: durationMinutes, compact: true)
     }
 }
 
@@ -625,12 +611,8 @@ private struct CFMonthlyActivityDay {
     }
 
     var durationText: String {
-        let hours = durationMinutes / 60
-        let minutes = durationMinutes % 60
         if durationMinutes == 0 { return "--" }
-        if hours == 0 { return "\(minutes)m" }
-        if minutes == 0 { return "\(hours)h" }
-        return "\(hours)h\(minutes)m"
+        return CFLocalization.duration(minutes: durationMinutes, compact: true)
     }
 }
 

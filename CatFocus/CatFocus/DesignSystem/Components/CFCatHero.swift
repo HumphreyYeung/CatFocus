@@ -137,7 +137,8 @@ private struct CFSpeechBubble: View {
                     ? CFColor.textPrimary.opacity(0.68)
                     : CFColor.textInverse
             )
-            .lineLimit(1)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, usesQuietTrainingStyle ? 4 : 14)
             .frame(minHeight: usesQuietTrainingStyle ? 24 : 34)

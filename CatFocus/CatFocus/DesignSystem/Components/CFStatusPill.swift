@@ -58,7 +58,7 @@ struct CFStatusPill: View {
                 .font(.system(size: 11, weight: .black))
                 .foregroundStyle(tone.iconColor)
 
-            Text(text.uppercased())
+            Text(CFLocalization.text(text).uppercased())
                 .font(CFFont.labelCaps)
                 .tracking(0.6)
                 .foregroundStyle(tone.foreground)

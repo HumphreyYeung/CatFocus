@@ -29,6 +29,9 @@ enum CFIcon: Equatable, Sendable {
     case apple
     case arrowDown
     case xmark
+    case globe
+    case privacy
+    case terms
 
     var systemName: String {
         switch self {
@@ -88,6 +91,12 @@ enum CFIcon: Equatable, Sendable {
             "arrow.down"
         case .xmark:
             "xmark"
+        case .globe:
+            "globe"
+        case .privacy:
+            "lock.shield.fill"
+        case .terms:
+            "doc.text.fill"
         }
     }
 

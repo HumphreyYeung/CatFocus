@@ -228,13 +228,13 @@ enum CFShareVideoComposer {
                 color: UIColor.black.withAlphaComponent(0.94)
             )
             drawCentered(
-                "\(displayName(userName)) × LUNA",
+                "\(displayName(userName)) × \(CFLocalization.text("Luna").uppercased())",
                 in: CGRect(x: 36, y: 950, width: 648, height: 24),
                 font: UIFont.systemFont(ofSize: 15, weight: .semibold),
                 color: UIColor.black.withAlphaComponent(0.78)
             )
             drawCentered(
-                "\(poseTitle.uppercased())  ·  \(focusMinutes) MIN FOCUS  ·  \(pointsText) FIT POINTS",
+                CFLocalization.format("%@: %lld min focus · %@ Fit Points", poseTitle, focusMinutes, pointsText),
                 in: CGRect(x: 36, y: 990, width: 648, height: 20),
                 font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
                 color: UIColor.black.withAlphaComponent(0.56)
@@ -282,21 +282,26 @@ enum CFShareVideoComposer {
 
     private static func displayName(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Human Friend" : String(trimmed.prefix(24))
+        return trimmed.isEmpty ? CFLocalization.text("Human Friend") : String(trimmed.prefix(24))
     }
 
     private static func shareHeadline(for mode: String, minutes: Int) -> String {
         let normalizedMode = mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let verb: String
-        switch normalizedMode {
-        case "work": verb = "WORKED"
-        case "study": verb = "STUDIED"
-        case "read": verb = "READ"
-        case "meditation": verb = "MEDITATED"
-        case "exercise": verb = "TRAINED"
-        default: verb = "FOCUSED"
+        let key: String
+        if normalizedMode == PresetFocusMode.work.title.lowercased() || normalizedMode == "work" {
+            key = "WORKED WITH LUNA FOR %lld MIN"
+        } else if normalizedMode == PresetFocusMode.study.title.lowercased() || normalizedMode == "study" {
+            key = "STUDIED WITH LUNA FOR %lld MIN"
+        } else if normalizedMode == PresetFocusMode.read.title.lowercased() || normalizedMode == "read" {
+            key = "READ WITH LUNA FOR %lld MIN"
+        } else if normalizedMode == PresetFocusMode.meditation.title.lowercased() || normalizedMode == "meditation" {
+            key = "MEDITATED WITH LUNA FOR %lld MIN"
+        } else if normalizedMode == PresetFocusMode.exercise.title.lowercased() || normalizedMode == "exercise" {
+            key = "TRAINED WITH LUNA FOR %lld MIN"
+        } else {
+            key = "FOCUSED WITH LUNA FOR %lld MIN"
         }
-        return "\(verb) WITH LUNA FOR \(minutes) MIN"
+        return CFLocalization.format(key, minutes)
     }
 
     private static func drawCentered(
@@ -376,11 +381,11 @@ enum CFShareVideoError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .photoPermissionDenied:
-            "Photo access is required to save this video. You can allow it in Settings."
+            CFLocalization.text("Photo access is required to save this video. You can allow it in Settings.")
         case .photoSaveFailed:
-            "The video could not be saved to Photos."
+            CFLocalization.text("The video could not be saved to Photos.")
         default:
-            "Unable to create a share video."
+            CFLocalization.text("Unable to create a share video.")
         }
     }
 }

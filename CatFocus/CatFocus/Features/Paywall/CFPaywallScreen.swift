@@ -4,6 +4,7 @@ struct CFPaywallScreen: View {
     @Binding var selectedPlan: OnboardingPlan
     @EnvironmentObject private var entitlementStore: CFEntitlementStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
     var source: CFPaywallSource
     var userName: String
     var goalTitle: String?
@@ -13,24 +14,23 @@ struct CFPaywallScreen: View {
     @State private var restoreMessage = ""
     @State private var isPurchasing = false
     @State private var purchaseSucceeded = false
-    @State private var paywallShownAt = Date()
-    @State private var selectedLegalDocument: CFLegalDocument?
 
     var body: some View {
         GeometryReader { proxy in
-            let mediaHeight = min(270, proxy.size.height * 0.34)
+            let mediaHeight = min(250, proxy.size.height * 0.30)
 
             VStack(spacing: 0) {
                 CFPaywallMediaHeader(source: source, height: mediaHeight)
                 .frame(height: mediaHeight)
                 .padding(.top, -proxy.safeAreaInsets.top)
 
-                VStack(spacing: 0) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
                     VStack(spacing: 0) {
                         brandLockup
-                            .padding(.bottom, CFSpacing.md)
+                            .padding(.bottom, CFSpacing.sm)
 
-                        Text(headline)
+                        Text(CFLocalization.text(headline))
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                             .lineLimit(1)
@@ -38,7 +38,7 @@ struct CFPaywallScreen: View {
                             .allowsTightening(true)
                             .foregroundStyle(CFColor.textPrimary)
 
-                        Text(subheadline)
+                        Text(CFLocalization.text(subheadline))
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(CFColor.textSecondary)
@@ -46,46 +46,47 @@ struct CFPaywallScreen: View {
                             .minimumScaleFactor(0.8)
                             .padding(.top, CFSpacing.sm)
                     }
-                    .frame(height: 120, alignment: .top)
+                    .padding(.bottom, CFSpacing.md)
 
                     HStack {
                         benefits
                             .frame(maxWidth: 320, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 148, alignment: .top)
+                    .padding(.bottom, CFSpacing.md)
 
-                    Spacer(minLength: CFSpacing.md)
-
-                    trialStatus
-                        .padding(.bottom, CFSpacing.md)
-
-                    CFPaywallTrialTimeline(
-                        endDateText: trialEndDateText,
-                        weeklyPrice: weeklyPrice
-                    )
-                    .padding(.horizontal, CFSpacing.xs)
-                    .padding(.bottom, CFSpacing.lg)
+                    VStack(spacing: CFSpacing.sm) {
+                        ForEach(OnboardingPlan.allCases, id: \.self) { plan in
+                            CFPaywallPlanRow(
+                                plan: plan,
+                                isSelected: selectedPlan == plan
+                            ) {
+                                selectedPlan = plan
+                                CFPaywallEventLogger.record(.planSelected(plan))
+                            }
+                        }
+                    }
+                    .padding(.bottom, CFSpacing.md)
 
                     CFPrimaryButton(
-                        title: purchaseSucceeded ? "Premium Unlocked" : "$0.00 for One Week",
+                        title: purchaseSucceeded ? "Premium Unlocked" : "Claim Now",
+                        uppercasesTitle: false,
                         isLoading: isPurchasing,
-                        showsSweep: true,
+                        backgroundColor: CFColor.accentTrial,
+                        foregroundColor: CFColor.textInverse,
+                        showsTrailingArrow: !purchaseSucceeded,
                         action: purchase
                     )
-
-                    Text("Then \(weeklyPrice)/week. Cancel anytime.")
-                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                        .foregroundStyle(CFColor.textTertiary)
-                        .padding(.top, CFSpacing.sm)
+                    .cfBreathingScale(isActive: !isPurchasing && !purchaseSucceeded)
 
                     legalLinks
-                        .padding(.top, CFSpacing.md)
+                        .padding(.top, CFSpacing.sm)
+                    }
+                    .padding(.horizontal, CFSpacing.xxl)
+                    .padding(.top, CFSpacing.md)
+                    .padding(.bottom, max(CFSpacing.md, proxy.safeAreaInsets.bottom))
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, CFSpacing.xxl)
-                .padding(.top, CFSpacing.md)
-                .padding(.bottom, max(CFSpacing.md, proxy.safeAreaInsets.bottom))
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -105,14 +106,10 @@ struct CFPaywallScreen: View {
         .alert("Restore Purchases", isPresented: $isRestoreAlertPresented) {
             Button("Done") {}
         } message: {
-            Text(restoreMessage)
-        }
-        .sheet(item: $selectedLegalDocument) { document in
-            CFLegalDocumentView(document: document)
+            Text(CFLocalization.text(restoreMessage))
         }
         .onAppear {
-            selectedPlan = .weekly
-            paywallShownAt = Date()
+            selectedPlan = .annual
             CFPaywallEventLogger.record(.paywallViewed(source: source))
         }
     }
@@ -133,13 +130,6 @@ struct CFPaywallScreen: View {
         case .premiumPose, .startTraining, .settings:
             return "Stay focused longer with Luna by your side."
         }
-    }
-
-    private let weeklyPrice = "$4.99"
-
-    private var trialEndDateText: String {
-        let endDate = Calendar.current.date(byAdding: .day, value: 7, to: paywallShownAt) ?? paywallShownAt
-        return endDate.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
     private var brandLockup: some View {
@@ -209,31 +199,16 @@ struct CFPaywallScreen: View {
         }
     }
 
-    private var trialStatus: some View {
-        HStack(spacing: CFSpacing.sm) {
-            Text("7-Day Free Trial Enabled")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(CFColor.textPrimary)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, CFSpacing.lg)
-        .frame(height: 68)
-        .background(CFColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
-        .accessibilityElement(children: .combine)
-    }
-
     private var legalLinks: some View {
         HStack {
             Button("Terms of Use") {
-                selectedLegalDocument = .terms
+                openURL(CFLegalDocument.terms.url)
             }
 
             Spacer()
 
             Button("Privacy Policy") {
-                selectedLegalDocument = .privacy
+                openURL(CFLegalDocument.privacy.url)
             }
         }
         .buttonStyle(.plain)
@@ -252,16 +227,16 @@ struct CFPaywallScreen: View {
 
     private func purchase() {
         guard !isPurchasing else { return }
-        selectedPlan = .weekly
-        CFPaywallEventLogger.record(.purchaseStarted(.weekly))
+        let plan = selectedPlan
+        CFPaywallEventLogger.record(.purchaseStarted(plan))
         isPurchasing = true
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
             isPurchasing = false
-            guard entitlementStore.purchase(plan: .weekly) else { return }
-            CFPaywallEventLogger.record(.purchaseSucceeded(.weekly))
+            guard entitlementStore.purchase(plan: plan) else { return }
+            CFPaywallEventLogger.record(.purchaseSucceeded(plan))
             withAnimation(reduceMotion ? .linear(duration: 0.01) : CFMotionCurve.componentTransition) {
                 purchaseSucceeded = true
             }
@@ -273,6 +248,92 @@ struct CFPaywallScreen: View {
                 }
             }
         }
+    }
+}
+
+private struct CFPaywallPlanRow: View {
+    var plan: OnboardingPlan
+    var isSelected: Bool
+    var action: () -> Void
+
+    private var title: String {
+        switch plan {
+        case .lifetime: "Lifetime"
+        case .annual: "Annually"
+        case .quarterly: "Quarter"
+        }
+    }
+
+    private var price: String {
+        switch plan {
+        case .lifetime: "$29.99"
+        case .annual: "$19.99"
+        case .quarterly: "$9.99"
+        }
+    }
+
+    private var dailyPrice: String {
+        plan == .annual ? "$0.05/day" : "$0.11/day"
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: CFSpacing.md) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(isSelected ? CFColor.accentPaywall : CFColor.borderSelected)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(CFLocalization.text(title))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(CFColor.textPrimary)
+
+                    HStack(spacing: 4) {
+                        Text(price)
+                            .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(CFColor.textTertiary)
+
+                        if plan == .lifetime {
+                            Text("·")
+                                .foregroundStyle(CFColor.textTertiary)
+                            Text(CFLocalization.text("One time purchase"))
+                                .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                                .foregroundStyle(CFColor.textTertiary)
+                        }
+                    }
+                }
+
+                Spacer(minLength: CFSpacing.sm)
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    if plan == .lifetime {
+                        Text(CFLocalization.text("Best Deal"))
+                            .font(.system(size: 11, weight: .black, design: .rounded))
+                            .foregroundStyle(CFColor.textInverse)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(CFColor.accentPaywall)
+                            .clipShape(Capsule())
+                    } else {
+                        Text(CFLocalization.text(dailyPrice))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(isSelected ? CFColor.accentPaywall : CFColor.textPrimary)
+                    }
+                }
+            }
+            .padding(.horizontal, CFSpacing.md)
+            .frame(maxWidth: .infinity, minHeight: 68)
+            .background(isSelected ? CFColor.accentPaywall.opacity(0.07) : CFColor.surfacePrimary)
+            .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous)
+                    .stroke(isSelected ? CFColor.accentPaywall : CFColor.borderSubtle, lineWidth: isSelected ? 1.7 : 0.9)
+            }
+        }
+        .buttonStyle(CFPressableStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -316,7 +377,7 @@ private struct CFPaywallMediaHeader: View {
 private struct CFPaywallPostcardHero: View {
     var body: some View {
         GeometryReader { proxy in
-            Image("CollectionPostcardHero")
+            CFPostcardArtwork.image(baseName: "CollectionPostcardHero")
                 .resizable()
                 .scaledToFill()
                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -325,63 +386,6 @@ private struct CFPaywallPostcardHero: View {
         .frame(maxWidth: .infinity)
         .background(CFColor.backgroundPrimary)
         .accessibilityLabel("A preview of Luna's postcard collection")
-    }
-}
-
-private struct CFPaywallTrialTimeline: View {
-    var endDateText: String
-    var weeklyPrice: String
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            Rectangle()
-                .fill(CFColor.divider)
-                .frame(width: 1.5, height: 42)
-                .offset(x: 3.25)
-
-            VStack(spacing: 18) {
-                timelineRow {
-                    Text("Today")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-
-                    Spacer(minLength: CFSpacing.sm)
-
-                    Text("7 days free")
-                        .foregroundStyle(CFColor.accentSuccess)
-
-                    Text("$0.00")
-                }
-
-                timelineRow {
-                    Text("Renews \(endDateText)")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-
-                    Spacer(minLength: CFSpacing.sm)
-
-                    Text("\(weeklyPrice)/week")
-                        .lineLimit(1)
-                }
-            }
-        }
-        .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-        .foregroundStyle(CFColor.textPrimary)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Free today. Seven days free. Renews \(endDateText) at \(weeklyPrice) per week.")
-    }
-
-    private func timelineRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: CFSpacing.md) {
-            Circle()
-                .fill(CFColor.borderSelected)
-                .frame(width: 8, height: 8)
-
-            HStack(alignment: .firstTextBaseline, spacing: CFSpacing.sm) {
-                content()
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .frame(height: 24)
     }
 }
 
@@ -499,7 +503,7 @@ private struct CFPaywallPoseReel: View {
     }
 
     private func postcardTile(name: String) -> some View {
-        Image(name)
+        CFPostcardArtwork.image(baseName: name)
             .resizable()
             .scaledToFit()
         .frame(width: tileWidth, height: height)
@@ -517,7 +521,7 @@ private struct CFPaywallBenefitRow: View {
                 .foregroundStyle(CFColor.accentTrial)
                 .background(CFColor.accentTrial.opacity(0.16))
                 .clipShape(Circle())
-            Text(title)
+            Text(CFLocalization.text(title))
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .lineLimit(2)
                 .minimumScaleFactor(0.78)

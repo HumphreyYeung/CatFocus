@@ -8,6 +8,11 @@ struct PostcardDefinition: Identifiable, Equatable, Sendable {
     let dateLine: String
     let letter: String
     let accessibilityDescription: String
+
+    var localizedTitle: String { CFLocalization.text(title) }
+    var localizedDateLine: String { CFLocalization.text(dateLine) }
+    var localizedLetter: String { CFLocalization.text(letter) }
+    var localizedAccessibilityDescription: String { CFLocalization.text(accessibilityDescription) }
 }
 
 enum PostcardCatalog {

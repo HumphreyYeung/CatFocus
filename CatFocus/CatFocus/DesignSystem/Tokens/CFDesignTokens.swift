@@ -24,7 +24,22 @@ enum CFColor {
     static let accentSuccess = Color(red: 0.08, green: 0.55, blue: 0.24)
     static let accentDanger = Color(red: 1.00, green: 0.22, blue: 0.20)
     static let accentTrial = Color(red: 1.00, green: 0.34, blue: 0.18)
+    static let accentPaywall = Color(red: 1.00, green: 0.34, blue: 0.18)
     static let accentReward = Color(red: 0.17, green: 0.17, blue: 0.19)
+}
+
+enum CFGradient {
+    static let spectrumBorder = AngularGradient(
+        colors: [
+            Color(red: 0.26, green: 0.72, blue: 1.00),
+            Color(red: 0.50, green: 0.34, blue: 1.00),
+            Color(red: 0.96, green: 0.32, blue: 0.72),
+            Color(red: 1.00, green: 0.70, blue: 0.26),
+            Color(red: 0.36, green: 0.86, blue: 0.68),
+            Color(red: 0.26, green: 0.72, blue: 1.00)
+        ],
+        center: .center
+    )
 }
 
 enum CFCloudLayer {
@@ -78,10 +93,11 @@ enum CFFont {
 }
 
 struct CFSectionTitle: View {
+    @Environment(\.locale) private var locale
     var title: String
 
     var body: some View {
-        Text(title)
+        Text(CFLocalization.text(title, locale: locale))
             .font(CFFont.cardTitle)
             .foregroundStyle(CFColor.textPrimary)
     }

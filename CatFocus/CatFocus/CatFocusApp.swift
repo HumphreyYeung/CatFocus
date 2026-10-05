@@ -8,6 +8,9 @@
 import SwiftUI
 import UIKit
 import UserNotifications
+import FirebaseCore
+import FirebaseMessaging
+import OSLog
 
 @MainActor
 final class CFOrientationCoordinator {
@@ -39,8 +42,15 @@ final class CFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCe
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        FirebaseApp.configure()
+        Messaging.messaging().delegate = self
+        CFRemoteConfigService.shared.configure()
+        CFRemoteConfigService.shared.refresh()
+        CFAnalytics.log(.appOpened)
+
         let center = UNUserNotificationCenter.current()
         center.delegate = self
+        application.registerForRemoteNotifications()
         center.setNotificationCategories([
             UNNotificationCategory(
                 identifier: CFPostcardNotificationCenter.categoryIdentifier,
@@ -66,6 +76,7 @@ final class CFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCe
                 forKey: CFPostcardNotificationCenter.pendingPostcardIDKey
             )
         }
+        CFAnalytics.log(.notificationTapped)
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: CFPostcardNotificationCenter.didTapNotification,
@@ -88,6 +99,23 @@ final class CFAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCe
         supportedInterfaceOrientationsFor window: UIWindow?
     ) -> UIInterfaceOrientationMask {
         CFOrientationCoordinator.shared.supportedOrientations
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Messaging.messaging().apnsToken = deviceToken
+        Logger(subsystem: "com.catfocus.app", category: "push")
+            .debug("APNs registration succeeded")
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Logger(subsystem: "com.catfocus.app", category: "push")
+            .error("APNs registration failed: \(error.localizedDescription, privacy: .public)")
     }
 }
 

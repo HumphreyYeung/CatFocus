@@ -86,18 +86,23 @@ struct MyCatView: View {
                 .frame(maxWidth: .infinity)
 
             Button(action: onTrialRequested) {
-                Text("Get Pro to Unlock")
+                Text(CFLocalization.text("Get Pro to Unlock"))
                     .font(.system(size: 17, weight: .black, design: .rounded))
                     .foregroundStyle(CFColor.textPrimary)
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .background(CFColor.surfacePrimary)
                     .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(CFGradient.spectrumBorder, lineWidth: 1.8)
+                    }
                     .cfShadow(CFShadow.cta)
             }
             .buttonStyle(CFPressableStyle())
+            .cfBreathingScale()
             .padding(.horizontal, 28)
             .padding(.bottom, 28)
-            .accessibilityHint("Opens Pro subscription options")
+            .accessibilityHint(CFLocalization.text("Opens Pro subscription options"))
         }
         .accessibilityElement(children: .contain)
     }
@@ -149,7 +154,7 @@ struct MyCatView: View {
                         collectionPosterAngle(at: index)
                     )
                 } label: {
-                    Image(postcard.imageName)
+                    CFPostcardArtwork.image(baseName: postcard.imageName)
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
@@ -171,7 +176,7 @@ struct MyCatView: View {
                         )
                     }
                 }
-                .accessibilityLabel("Open \(postcard.title)")
+                .accessibilityLabel("Open \(postcard.localizedTitle)")
             }
         }
         .padding(.top, CFSpacing.xs)
@@ -271,7 +276,7 @@ struct MyCatView: View {
 
                 Spacer(minLength: CFSpacing.md)
 
-                Text(postcardProgress.pendingPostcard == nil ? "KEEP GOING" : "ON THE WAY")
+                Text(CFLocalization.text(postcardProgress.pendingPostcard == nil ? "KEEP GOING" : "ON THE WAY"))
                     .font(CFFont.labelCaps)
                     .tracking(0.7)
                     .foregroundStyle(
@@ -310,31 +315,31 @@ struct MyCatView: View {
 
     private var nextPostcardText: String {
         if let pendingPostcard = postcardProgress.pendingPostcard {
-            return "Arrives by \(formattedDeliveryDate(pendingPostcard.deliverAt))."
+            return CFLocalization.format("Arrives by %@.", formattedDeliveryDate(pendingPostcard.deliverAt))
         }
         if !postcardProgress.queuedPostcardIDs.isEmpty {
-            return "Your next letter is queued."
+            return CFLocalization.text("Your next letter is queued.")
         }
         if let nextDays = postcardProgress.nextRequiredActiveDays {
             let remaining = max(0, nextDays - postcardProgress.activeDayCount)
             return remaining == 1
-                ? "1 more active day until the next letter."
-                : "\(remaining) more active days until the next letter."
+                ? CFLocalization.text("1 more active day until the next letter.")
+                : CFLocalization.format("%lld more active days until the next letter.", remaining)
         }
         return postcardProgress.deliveredPostcardIDs.count == PostcardCatalog.all.count
-            ? "Your first album is complete."
-            : "Keep showing up. Luna is still exploring."
+            ? CFLocalization.text("Your first album is complete.")
+            : CFLocalization.text("Keep showing up. Luna is still exploring.")
     }
 
     private var collectionNoneMessage: String {
         if let pendingPostcard = postcardProgress.pendingPostcard {
-            return "Luna is writing. Your first letter arrives by \(formattedDeliveryDate(pendingPostcard.deliverAt))."
+            return CFLocalization.format("Luna is writing. Your first letter arrives by %@.", formattedDeliveryDate(pendingPostcard.deliverAt))
         }
-        return "Keep focusing. Luna’s first surprise is on its way."
+        return CFLocalization.text("Finish a focus session and Luna will start writing your first letter.")
     }
 
     private func formattedDeliveryDate(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).day())
+        date.formatted(.dateTime.month(.abbreviated).day().locale(CFLocalization.locale))
     }
 
     private var nextMilestoneProgress: CGFloat {
@@ -436,7 +441,7 @@ struct MyCatView: View {
             selectedPostcard = PostcardCatalog.welcome
         } label: {
             HStack(spacing: CFSpacing.lg) {
-                Image(PostcardCatalog.welcome.imageName)
+                CFPostcardArtwork.image(baseName: PostcardCatalog.welcome.imageName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 76, height: 64)
@@ -451,7 +456,7 @@ struct MyCatView: View {
                         .tracking(1)
                         .foregroundStyle(CFColor.accentSuccess)
 
-                    Text(PostcardCatalog.welcome.title)
+                    Text(PostcardCatalog.welcome.localizedTitle)
                         .font(CFFont.cardTitle)
                         .foregroundStyle(CFColor.textPrimary)
 
@@ -485,7 +490,7 @@ struct MyCatView: View {
             selectedPostcard = postcard
         } label: {
             HStack(spacing: CFSpacing.lg) {
-                Image(postcard.imageName)
+                CFPostcardArtwork.image(baseName: postcard.imageName)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 82, height: 68)
@@ -501,7 +506,7 @@ struct MyCatView: View {
                         .font(CFFont.labelCaps)
                         .tracking(1)
                         .foregroundStyle(CFColor.accentSuccess)
-                    Text(postcard.title)
+                    Text(postcard.localizedTitle)
                         .font(CFFont.cardTitle)
                         .foregroundStyle(CFColor.textPrimary)
                     Text("Tap to read Luna's note")
@@ -521,7 +526,7 @@ struct MyCatView: View {
             }
         }
         .buttonStyle(CFPressableStyle())
-        .accessibilityLabel("New letter, \(postcard.title)")
+        .accessibilityLabel("New letter, \(postcard.localizedTitle)")
         .accessibilityHint("Opens Luna's letter")
     }
 
@@ -611,7 +616,7 @@ struct CFCollectionPosterFocusOverlay: View {
                     .opacity(isGlowVisible ? 0.36 : 0)
                     .allowsHitTesting(false)
 
-                Image(focus.postcard.imageName)
+                CFPostcardArtwork.image(baseName: focus.postcard.imageName)
                     .resizable()
                     .scaledToFit()
                     .frame(width: targetWidth)
@@ -632,7 +637,7 @@ struct CFCollectionPosterFocusOverlay: View {
                         radius: isDismissing ? 8 : (isExpanded ? 30 : 10),
                         y: isDismissing ? 4 : (isExpanded ? 16 : 4)
                     )
-                    .accessibilityLabel(focus.postcard.accessibilityDescription)
+                    .accessibilityLabel(focus.postcard.localizedAccessibilityDescription)
 
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
@@ -887,7 +892,7 @@ private struct CFArrivalEnvelope: View {
                     .zIndex(isOpen ? 1 : 5)
 
                 if let postcardImageName {
-                    Image(postcardImageName)
+                    CFPostcardArtwork.image(baseName: postcardImageName)
                         .resizable()
                         .scaledToFit()
                         .frame(width: size.width * 0.91)
@@ -924,14 +929,14 @@ private struct CFEnvelopeAddressLayer: View {
 
     private var displayName: String {
         let trimmed = recipientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Human Friend" : trimmed
+        return trimmed.isEmpty ? CFLocalization.text("Human Friend") : trimmed
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 CFPrintedEnvelopeText(
-                    text: "TO \(displayName):",
+                    text: CFLocalization.format("TO %@:", displayName),
                     font: .system(size: 12.5, weight: .medium, design: .monospaced),
                     tracking: 0.55
                 )
@@ -946,7 +951,7 @@ private struct CFEnvelopeAddressLayer: View {
                 Spacer(minLength: 0)
 
                 CFPrintedEnvelopeText(
-                    text: "FROM LUNA",
+                    text: CFLocalization.text("FROM LUNA"),
                     font: .system(size: 12.5, weight: .medium, design: .monospaced),
                     tracking: 0.8
                 )
@@ -1079,7 +1084,7 @@ private struct CFSampleLetterPreview: View {
                     .frame(width: envelopeWidth, height: CFSampleLetterStyle.envelopeHeight)
                     .offset(y: isOpen ? 108 : 34)
 
-                    Text(isOpen ? "Tap to close" : "Tap to open Luna's sample letter")
+                    Text(CFLocalization.text(isOpen ? "Tap to close" : "Tap to open Luna's sample letter"))
                         .font(CFFont.caption)
                         .foregroundStyle(CFColor.textSecondary)
                         .padding(.horizontal, CFSpacing.md)
@@ -1093,13 +1098,13 @@ private struct CFSampleLetterPreview: View {
             .frame(height: CFSampleLetterStyle.stageHeight)
         }
         .buttonStyle(CFPressableStyle())
-        .accessibilityLabel(isOpen ? "Sample letter from Luna, partially locked" : "Closed sample letter from Luna")
-        .accessibilityHint(isOpen ? "Closes the sample letter" : "Opens a preview of the Pro letter experience")
+        .accessibilityLabel(CFLocalization.text(isOpen ? "Sample letter from Luna, partially locked" : "Closed sample letter from Luna"))
+        .accessibilityHint(CFLocalization.text(isOpen ? "Closes the sample letter" : "Opens a preview of the Pro letter experience"))
     }
 
     private var displayRecipientName: String {
         let trimmed = recipientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Human Friend" : trimmed
+        return trimmed.isEmpty ? CFLocalization.text("Human Friend") : trimmed
     }
 
     private var letterDecorations: some View {
@@ -1144,7 +1149,7 @@ private struct CFSampleLetterPreview: View {
             }
             .foregroundStyle(CFColor.textSecondary)
 
-            Image(PostcardCatalog.welcome.imageName)
+            CFPostcardArtwork.image(baseName: PostcardCatalog.welcome.imageName)
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
@@ -1213,7 +1218,7 @@ private struct CFLetterEnvelope: View {
         GeometryReader { proxy in
             ZStack {
                 if let postcardImageName {
-                    Image(postcardImageName)
+                    CFPostcardArtwork.image(baseName: postcardImageName)
                         .resizable()
                         .scaledToFit()
                         .frame(width: proxy.size.width * 0.72)
@@ -1291,7 +1296,7 @@ private struct CFLetterEnvelope: View {
                     }
 
                     if let headline {
-                        Text(headline)
+                        Text(CFLocalization.text(headline))
                             .font(.system(size: 17, weight: .black, design: .rounded))
                             .foregroundStyle(CFColor.textPrimary)
                             .multilineTextAlignment(.center)
@@ -1364,7 +1369,7 @@ private struct PostcardTile: View {
         .buttonStyle(CFPressableStyle())
         .disabled(!state.isAvailable)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(state.isAvailable ? "Opens the letter" : "")
+        .accessibilityHint(CFLocalization.text(state.isAvailable ? "Opens the letter" : ""))
     }
 
     @ViewBuilder
@@ -1375,7 +1380,7 @@ private struct PostcardTile: View {
 
             switch state {
             case .collected, .unread:
-                Image(postcard.imageName)
+                CFPostcardArtwork.image(baseName: postcard.imageName)
                     .resizable()
                     .scaledToFill()
                     .clipped()
@@ -1427,17 +1432,17 @@ private struct PostcardTile: View {
 
     private var title: String {
         switch state {
-        case .collected, .unread: postcard.title.uppercased()
-        case .onTheWay: "A SURPRISE FROM LUNA"
-        case .locked: "LETTER LOCKED"
+        case .collected, .unread: postcard.localizedTitle.uppercased()
+        case .onTheWay: CFLocalization.text("A SURPRISE FROM LUNA")
+        case .locked: CFLocalization.text("LETTER LOCKED")
         }
     }
 
     private var subtitle: String {
         switch state {
-        case .collected, .unread: postcard.dateLine
-        case .onTheWay: "Check the mailbox soon"
-        case .locked(let requiredDays): "Unlocks at \(requiredDays) active days"
+        case .collected, .unread: postcard.localizedDateLine
+        case .onTheWay: CFLocalization.text("Check the mailbox soon")
+        case .locked(let requiredDays): CFLocalization.format("Unlocks at %lld active days", requiredDays)
         }
     }
 
@@ -1447,10 +1452,10 @@ private struct PostcardTile: View {
 
     private var accessibilityLabel: String {
         switch state {
-        case .collected: "Collected letter, \(postcard.title)"
-        case .unread: "New letter, \(postcard.title)"
-        case .onTheWay: "Letter from Luna is on the way"
-        case .locked(let requiredDays): "Locked letter, unlocks at \(requiredDays) active days"
+        case .collected: CFLocalization.format("Collected letter, %@", postcard.localizedTitle)
+        case .unread: CFLocalization.format("New letter, %@", postcard.localizedTitle)
+        case .onTheWay: CFLocalization.text("Letter from Luna is on the way")
+        case .locked(let requiredDays): CFLocalization.format("Locked letter, unlocks at %lld active days", requiredDays)
         }
     }
 }
@@ -1490,17 +1495,17 @@ private struct PostcardDetailView: View {
                         )
                     }
                     .buttonStyle(CFPressableStyle())
-                    .accessibilityLabel(showsLetter ? "Letter from Luna" : postcard.accessibilityDescription)
+                    .accessibilityLabel(showsLetter ? CFLocalization.text("Letter from Luna") : postcard.localizedAccessibilityDescription)
                     .accessibilityHint("Double tap to turn the letter")
 
-                    Text(showsLetter ? "Tap to see the photo" : "Tap to read Luna's note")
+                    Text(CFLocalization.text(showsLetter ? "Tap to see the photo" : "Tap to read Luna's note"))
                         .font(CFFont.bodySmall)
                         .foregroundStyle(CFColor.textSecondary)
                 }
                 .padding(CFSpacing.xl)
             }
             .background(CFColor.backgroundPrimary)
-            .navigationTitle(postcard.title)
+            .navigationTitle(postcard.localizedTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1515,14 +1520,14 @@ private struct PostcardDetailView: View {
 
     private var photoSide: some View {
         VStack(alignment: .leading, spacing: CFSpacing.md) {
-            Image(postcard.imageName)
+            CFPostcardArtwork.image(baseName: postcard.imageName)
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
                 .background(CFColor.surfacePrimary)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            Text(postcard.dateLine.uppercased())
+            Text(postcard.localizedDateLine.uppercased())
                 .font(CFFont.labelCaps)
                 .tracking(1)
                 .foregroundStyle(CFColor.textSecondary)
@@ -1551,7 +1556,7 @@ private struct PostcardDetailView: View {
 
             Divider()
 
-            Text(postcard.letter)
+            Text(postcard.localizedLetter)
                 .font(CFFont.pactHandwritten)
                 .foregroundStyle(CFColor.textPrimary)
                 .lineSpacing(8)
@@ -1559,7 +1564,7 @@ private struct PostcardDetailView: View {
 
             Spacer(minLength: 0)
 
-            Text(postcard.dateLine)
+            Text(postcard.localizedDateLine)
                 .font(CFFont.caption)
                 .foregroundStyle(CFColor.textTertiary)
         }

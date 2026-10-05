@@ -8,6 +8,13 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ja</string>
+		<string>ko</string>
+		<string>zh-Hant-TW</string>
+	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -21,7 +28,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>CatFocus saves focus videos to Photos.</string>
+	<string>CatFocus saves your focus cards and videos to Photos when you choose to save them.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

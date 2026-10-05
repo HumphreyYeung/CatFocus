@@ -52,7 +52,7 @@ struct CFCatTransitionView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("catMotionPreview")
         .accessibilityLabel("Luna")
-        .accessibilityValue(displayedAccessibilityStateLabel)
+        .accessibilityValue(CFLocalization.text(displayedAccessibilityStateLabel))
         .onChange(of: transitionInput) { _, newInput in
             transition(to: newInput)
         }

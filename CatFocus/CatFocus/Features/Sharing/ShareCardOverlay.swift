@@ -208,11 +208,10 @@ struct ShareCardOverlay: View {
     }
 
     private func formattedDuration(_ minutes: Int) -> String {
-        guard minutes > 0 else { return "0m" }
         if minutes >= 60 {
-            return String(format: "%.1fh", Double(minutes) / 60)
+            return CFLocalization.format("%.1f h", Double(minutes) / 60)
         }
-        return "\(minutes)m"
+        return CFLocalization.duration(minutes: minutes)
     }
 }
 
@@ -223,7 +222,7 @@ private struct CFShareMetric: View {
 
     var body: some View {
         VStack(spacing: CFSpacing.sm) {
-            Text(label.uppercased())
+            Text(CFLocalization.text(label).uppercased())
                 .font(.system(size: 8, weight: .black, design: .rounded))
                 .foregroundStyle(CFColor.textSecondary)
                 .lineLimit(1)
@@ -269,7 +268,7 @@ private struct CFShareActionButton: View {
                     .background(CFColor.surfaceSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
-                Text(title)
+                Text(CFLocalization.text(title))
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(CFColor.textSecondary)
                     .lineLimit(1)
@@ -278,7 +277,7 @@ private struct CFShareActionButton: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(CFLocalization.text(accessibilityLabel))
     }
 }
 

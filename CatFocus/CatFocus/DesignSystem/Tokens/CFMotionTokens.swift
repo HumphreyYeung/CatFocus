@@ -34,6 +34,26 @@ enum CFMotionCurve {
     )
 }
 
+struct CFBreathingScaleModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var isActive: Bool = true
+
+    func body(content: Content) -> some View {
+        content
+            .phaseAnimator(isActive && !reduceMotion ? [false, true] : [false]) { view, phase in
+                view.scaleEffect(phase ? 1.05 : 1)
+            } animation: { _ in
+                .easeInOut(duration: 1.3)
+            }
+    }
+}
+
+extension View {
+    func cfBreathingScale(isActive: Bool = true) -> some View {
+        modifier(CFBreathingScaleModifier(isActive: isActive))
+    }
+}
+
 struct CFPressableStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

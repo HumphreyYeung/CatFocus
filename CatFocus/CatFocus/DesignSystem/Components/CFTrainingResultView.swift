@@ -110,7 +110,7 @@ struct CFTrainingResultView: View {
 
             Spacer(minLength: CFSpacing.lg)
 
-            Text(state.title)
+            Text(CFLocalization.text(state.title))
                 .font(.system(size: 26, weight: .black, design: .rounded).italic())
                 .foregroundStyle(CFColor.textPrimary)
                 .cfEntrance(delay: 0.08)
@@ -131,10 +131,10 @@ struct CFTrainingResultView: View {
 
     private var resultSummary: some View {
         VStack(spacing: 0) {
-            CFStatusPill(icon: .spark, text: "Fit Points \(signedPoints)", tone: state.tone)
+            CFStatusPill(icon: .spark, text: CFLocalization.format("Fit Points %@", signedPoints), tone: state.tone)
             .padding(.top, CFSpacing.md)
 
-            Text(state.message)
+            Text(CFLocalization.text(state.message))
                 .font(CFFont.body)
                 .foregroundStyle(CFColor.textSecondary)
                 .multilineTextAlignment(.center)
@@ -147,7 +147,7 @@ struct CFTrainingResultView: View {
     private func resultActions(horizontalInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             CFPrimaryButton(
-                title: state == .success ? "Start \(breakDurationMinutes) Min Break" : "Back to Home",
+                title: state == .success ? CFLocalization.format("Start %lld Min Break", breakDurationMinutes) : "Back to Home",
                 icon: state == .success ? .play : nil,
                 action: state == .success ? (successPrimaryAction ?? primaryAction) : primaryAction
             )

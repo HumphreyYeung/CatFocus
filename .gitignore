@@ -11,3 +11,6 @@ xcuserdata/
 # Swift Package Manager / Xcode build products.
 .build/
 DerivedData/
+
+# Firebase client configuration is supplied locally and not committed.
+CatFocus/CatFocus/GoogleService-Info.plist

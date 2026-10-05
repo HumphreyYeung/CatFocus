@@ -2,35 +2,50 @@ import SwiftUI
 
 struct CFPrimaryButton: View {
     var title: String
+    var uppercasesTitle: Bool = true
     var icon: CFIcon?
     var isLoading: Bool = false
     var isDisabled: Bool = false
     var showsSweep: Bool = false
     var variant: CFPrimaryButtonVariant = .standard
+    var backgroundColor: Color?
+    var foregroundColor: Color?
+    var showsTrailingArrow: Bool = false
     var action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: CFSpacing.sm) {
-                if isLoading {
-                    ProgressView()
-                        .tint(CFColor.textInverse)
-                } else if let icon {
-                    icon.image
-                        .font(.system(size: 15, weight: .black))
+            ZStack {
+                HStack(spacing: CFSpacing.sm) {
+                    if isLoading {
+                        ProgressView()
+                            .tint(foregroundColor ?? CFColor.textInverse)
+                    } else if let icon {
+                        icon.image
+                            .font(.system(size: 15, weight: .black))
+                    }
+
+                    Text(uppercasesTitle ? CFLocalization.text(title).uppercased() : CFLocalization.text(title))
+                        .font(CFFont.button)
+                        .tracking(0.8)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
                 }
 
-                Text(title.uppercased())
-                    .font(CFFont.button)
-                    .tracking(0.8)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                if showsTrailingArrow && !isLoading {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 19, weight: .semibold))
+                    }
+                    .accessibilityHidden(true)
+                }
             }
-            .foregroundStyle(CFColor.textInverse)
+            .foregroundStyle(foregroundColor ?? CFColor.textInverse)
             .frame(maxWidth: .infinity, minHeight: 56)
             .padding(.horizontal, 20)
-            .background(CFCloudLayer.graphite)
+            .background(backgroundColor ?? CFCloudLayer.graphite)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay {
                 if showsSweep && !isLoading && !isDisabled && !reduceMotion {
@@ -64,7 +79,7 @@ struct CFPrimaryButton: View {
         }
         .buttonStyle(CFPressableStyle())
         .disabled(isDisabled || isLoading)
-        .accessibilityLabel(title)
+        .accessibilityLabel(CFLocalization.text(title))
     }
 }
 

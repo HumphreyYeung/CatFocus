@@ -20,6 +20,7 @@ struct OnboardingFlowView: View {
     @State private var selectedProblem: OnboardingChoice?
     @State private var selectedGoal: OnboardingChoice?
     @State private var selectedReminderTime: OnboardingReminderTime?
+    @State private var didLogOnboardingStart = false
 
     @AppStorage("onboardingName") private var savedName = ""
     @AppStorage("onboardingProblemID") private var savedProblemID = ""
@@ -37,7 +38,7 @@ struct OnboardingFlowView: View {
                     bubbleWidth: 324,
                     bubbleTopRatio: 0.20
                 ) {
-                    go(to: .greetingTwo)
+                    advance(to: .greetingTwo)
                 }
             case .greetingTwo:
                 OnboardingStoryScene(
@@ -46,7 +47,7 @@ struct OnboardingFlowView: View {
                     bubbleWidth: 280,
                     bubbleTopRatio: 0.13
                 ) {
-                    go(to: .greetingThree)
+                    advance(to: .greetingThree)
                 }
             case .greetingThree:
                 OnboardingStoryScene(
@@ -55,7 +56,7 @@ struct OnboardingFlowView: View {
                     bubbleWidth: 324,
                     bubbleTopRatio: 0.17
                 ) {
-                    go(to: .name)
+                    advance(to: .name)
                 }
             case .name:
                 OnboardingFormPage(
@@ -80,11 +81,11 @@ struct OnboardingFlowView: View {
                     catSize: .onboardingHero,
                     buttonTitle: "Sounds Good"
                 ) {
-                    go(to: .trial)
+                    advance(to: .trial)
                 }
             case .trial:
                 OnboardingTrialScreen {
-                    go(to: .trialFinish)
+                    advance(to: .trialFinish)
                 }
             case .trialFinish:
                 OnboardingCatMessageScreen(
@@ -95,11 +96,11 @@ struct OnboardingFlowView: View {
                     messageAreaHeight: 132,
                     showsCelebration: true
                 ) {
-                    go(to: .contract)
+                    advance(to: .contract)
                 }
             case .contract:
                 OnboardingContractScreen(signatureData: $savedSignatureData) {
-                    go(to: .notifications)
+                    advance(to: .notifications)
                 }
             case .notifications:
                 OnboardingReminderScreen(selectedTime: $selectedReminderTime) {
@@ -122,6 +123,11 @@ struct OnboardingFlowView: View {
             }
         }
         .animation(pageAnimation, value: step)
+        .onAppear {
+            guard !didLogOnboardingStart else { return }
+            didLogOnboardingStart = true
+            CFAnalytics.log(.onboardingStarted)
+        }
         #if DEBUG
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_ONBOARDING_OPTIONS") {
@@ -190,22 +196,33 @@ struct OnboardingFlowView: View {
 
     private var displayName: String {
         let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? "Human Friend" : trimmedName
+        return trimmedName.isEmpty ? CFLocalization.text("Human Friend") : trimmedName
     }
 
     private var suggestionMessage: String {
-        let goal = selectedGoal?.title.lowercased() ?? "your focus"
-        return "Hey, wait - maybe we could keep an eye on each other? You focus on \(goal), I'll train."
+        let goalKey: String
+        switch selectedGoal?.id {
+        case "work": goalKey = "work"
+        case "meditation": goalKey = "meditation"
+        case "reading": goalKey = "reading"
+        case "study": goalKey = "study"
+        case "else": goalKey = "something else"
+        default: goalKey = "your focus"
+        }
+        return CFLocalization.format(
+            "Hey, wait - maybe we could keep an eye on each other? You focus on %@, I'll train.",
+            CFLocalization.text(goalKey)
+        )
     }
 
     private func advanceFormStep() {
         switch step {
         case .name:
-            go(to: .problems)
+            advance(to: .problems)
         case .problems:
-            go(to: .goal)
+            advance(to: .goal)
         case .goal:
-            go(to: .suggestion)
+            advance(to: .suggestion)
         default:
             break
         }
@@ -215,6 +232,11 @@ struct OnboardingFlowView: View {
         withAnimation(pageAnimation) {
             step = nextStep
         }
+    }
+
+    private func advance(to nextStep: OnboardingStep) {
+        CFAnalytics.log(.onboardingStepCompleted(stepName: step.analyticsName))
+        go(to: nextStep)
     }
 
     private func goBack() {
@@ -253,9 +275,17 @@ struct OnboardingFlowView: View {
         savedProblemID = selectedProblem?.id ?? ""
         savedGoalID = selectedGoal?.id ?? ""
         savedReminderTimeID = selectedReminderTime?.rawValue ?? ""
+        if let selectedReminderTime {
+            CFDailyReminderScheduler.setDefaultPreference(for: selectedReminderTime.rawValue)
+        }
 
         Task { @MainActor in
-            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+            CFAnalytics.log(.notificationPermissionResult(granted: granted))
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+            CFAnalytics.log(.onboardingCompleted)
             finishOnboarding()
         }
     }
@@ -275,6 +305,22 @@ private enum OnboardingStep: Hashable {
     case notifications
 
     static let progressTotal = 8
+
+    var analyticsName: String {
+        switch self {
+        case .greetingOne: "greeting_one"
+        case .greetingTwo: "greeting_two"
+        case .greetingThree: "greeting_three"
+        case .name: "name"
+        case .problems: "problems"
+        case .goal: "goal"
+        case .suggestion: "suggestion"
+        case .trial: "trial"
+        case .trialFinish: "trial_finish"
+        case .contract: "contract"
+        case .notifications: "notifications"
+        }
+    }
 
     var showsProgressHeader: Bool {
         self != .greetingOne && self != .greetingTwo && self != .greetingThree
@@ -334,8 +380,10 @@ private struct OnboardingChoice: Identifiable, Equatable {
     ]
 }
 
-enum OnboardingPlan: String, Equatable {
-    case weekly
+enum OnboardingPlan: String, CaseIterable, Hashable {
+    case lifetime
+    case annual
+    case quarterly
 }
 
 private enum OnboardingLunaAsset {
@@ -698,7 +746,7 @@ private struct OnboardingReminderScreen: View {
                             }
                         } label: {
                             HStack(spacing: CFSpacing.md) {
-                                Text(time.title)
+                                Text(CFLocalization.text(time.title))
                                     .font(.system(
                                         size: 15,
                                         weight: selectedTime == time ? .bold : .semibold,
@@ -723,7 +771,7 @@ private struct OnboardingReminderScreen: View {
                             .cfShadow(selectedTime == time ? CFCloudLayer.selectionStrongShadow : CFCloudLayer.cardShadow)
                         }
                         .buttonStyle(OnboardingPressButtonStyle())
-                        .accessibilityLabel(time.title)
+                        .accessibilityLabel(CFLocalization.text(time.title))
                         .accessibilityAddTraits(selectedTime == time ? .isSelected : [])
                     }
                 }
@@ -894,7 +942,7 @@ private struct OnboardingTrialScreen: View {
                 .background(CFColor.surfaceSoft.opacity(0.72), in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(CFLocalization.text(accessibilityLabel))
         .accessibilityHint("Tap to change the pre-training pose")
     }
 
@@ -967,8 +1015,8 @@ private struct OnboardingContractScreen: View {
                 )
             }
             .buttonStyle(OnboardingPressButtonStyle())
-            .accessibilityLabel(hasSignature ? "Seal the Pact" : "Sign the Pact")
-            .accessibilityHint(hasSignature ? "Complete the pact" : "Open the signature panel")
+            .accessibilityLabel(CFLocalization.text(hasSignature ? "Seal the Pact" : "Sign the Pact"))
+            .accessibilityHint(CFLocalization.text(hasSignature ? "Complete the pact" : "Open the signature panel"))
             .padding(.top, CFSpacing.xl)
             .cfEntrance(delay: 0.10, offset: 10)
 
@@ -1096,7 +1144,7 @@ private struct OnboardingSignatureActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            Text(CFLocalization.text(title))
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .tracking(0.8)
                 .foregroundStyle(isProminent ? CFColor.textInverse : CFColor.textPrimary)
@@ -1113,7 +1161,7 @@ private struct OnboardingSignatureActionButton: View {
         }
         .buttonStyle(CFPressableStyle())
         .disabled(isDisabled)
-        .accessibilityLabel(title.capitalized)
+        .accessibilityLabel(CFLocalization.text(title))
     }
 }
 
@@ -1334,20 +1382,21 @@ private struct OnboardingDialogueBubble: View {
 
     private func startTyping() {
         typingTask?.cancel()
+        let localizedText = CFLocalization.text(text)
 
         guard animateTyping else {
-            displayedText = text
+            displayedText = localizedText
             return
         }
 
         guard !reduceMotion else {
-            displayedText = text
+            displayedText = localizedText
             return
         }
 
         displayedText = ""
         typingTask = Task { @MainActor in
-            for character in text {
+            for character in localizedText {
                 guard !Task.isCancelled else { return }
                 displayedText.append(character)
                 try? await Task.sleep(nanoseconds: 18_000_000)
@@ -1382,7 +1431,7 @@ private struct OnboardingChoiceButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title.uppercased())
+            Text(CFLocalization.text(title).uppercased())
                 .font(.system(size: 13.5, weight: isSelected ? .bold : .semibold, design: .rounded))
                 .tracking(0.45)
                 .foregroundStyle(CFCloudLayer.graphite)
@@ -1406,8 +1455,8 @@ private struct OnboardingChoiceButton: View {
                 .animation(CFMotionCurve.componentTransition, value: isSelected)
         }
         .buttonStyle(OnboardingPressButtonStyle())
-        .accessibilityLabel(title)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityLabel(CFLocalization.text(title))
+        .accessibilityValue(CFLocalization.text(isSelected ? "Selected" : "Not selected"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -1577,7 +1626,7 @@ private struct OnboardingHoldButton: View {
             completionTask?.cancel()
         }
         .accessibilityLabel("Hold to train")
-        .accessibilityValue(isPressing ? "\(Int(elapsedSeconds.rounded(.down))) seconds" : "Ready")
+        .accessibilityValue(isPressing ? CFLocalization.format("%lld seconds", Int(elapsedSeconds.rounded(.down))) : CFLocalization.text("Ready"))
     }
 
     private var progress: CGFloat {
@@ -1641,7 +1690,7 @@ private struct OnboardingContractCard: View {
                     .background(CFColor.surfaceSoft)
                     .clipShape(Capsule())
                 Spacer()
-                Text("19 June 2026")
+                Text(Date.now.formatted(.dateTime.year().month(.wide).day().locale(CFLocalization.locale)))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundStyle(CFColor.textTertiary)
             }

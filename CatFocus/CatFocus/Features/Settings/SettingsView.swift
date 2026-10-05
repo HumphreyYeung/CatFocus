@@ -1,14 +1,16 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(\.openURL) private var openURL
     @Binding var focusDurationMinutes: Int
     @Binding var shortBreakMinutes: Int
     @Binding var longBreakMinutes: Int
     @Binding var sessionAlertsEnabled: Bool
     @Binding var whiteNoiseEnabled: Bool
+    @AppStorage(CFLocalization.languagePreferenceKey) private var appLanguage = "system"
     var hasPremiumAccess: Bool = false
-    var selectedPlan: OnboardingPlan = .weekly
-    @State private var selectedLegalDocument: CFLegalDocument?
+    var selectedPlan: OnboardingPlan = .annual
+    @State private var isLanguagePickerPresented = false
 
     var onClose: () -> Void = {}
     var onResetStats: () -> Void = {}
@@ -21,7 +23,7 @@ struct SettingsView: View {
         sessionAlertsEnabled: Binding<Bool>,
         whiteNoiseEnabled: Binding<Bool>,
         hasPremiumAccess: Bool = false,
-        selectedPlan: OnboardingPlan = .weekly,
+        selectedPlan: OnboardingPlan = .annual,
         onClose: @escaping () -> Void = {},
         onResetStats: @escaping () -> Void = {},
         onPremiumRequested: @escaping () -> Void = {}
@@ -96,16 +98,22 @@ struct SettingsView: View {
                         }
                     }
 
+                    settingsSection(title: "Language") {
+                        CFSettingsLinkRow(icon: .globe, title: "App Language") {
+                            isLanguagePickerPresented = true
+                        }
+                    }
+
                     settingsSection(title: "About & Legal") {
                         VStack(spacing: 0) {
-                            CFSettingsLinkRow(title: "Privacy Policy") {
-                                selectedLegalDocument = .privacy
+                            CFSettingsLinkRow(icon: .privacy, title: "Privacy Policy") {
+                                openURL(CFLegalDocument.privacy.url)
                             }
 
                             CFDividerInset()
 
-                            CFSettingsLinkRow(title: "Terms of Use") {
-                                selectedLegalDocument = .terms
+                            CFSettingsLinkRow(icon: .terms, title: "Terms of Use") {
+                                openURL(CFLegalDocument.terms.url)
                             }
                         }
                     }
@@ -131,8 +139,9 @@ struct SettingsView: View {
             }
         }
         .background(CFColor.backgroundPrimary)
-        .sheet(item: $selectedLegalDocument) { document in
-            CFLegalDocumentView(document: document)
+        .environment(\.locale, CFLocalization.locale(for: appLanguage))
+        .sheet(isPresented: $isLanguagePickerPresented) {
+            CFLanguagePickerView(appLanguage: $appLanguage)
         }
     }
 
@@ -176,20 +185,7 @@ struct SettingsView: View {
                         .clipShape(Capsule())
                         .overlay {
                             Capsule()
-                                .stroke(
-                                    AngularGradient(
-                                        colors: [
-                                            Color(red: 0.26, green: 0.72, blue: 1.00),
-                                            Color(red: 0.50, green: 0.34, blue: 1.00),
-                                            Color(red: 0.96, green: 0.32, blue: 0.72),
-                                            Color(red: 1.00, green: 0.70, blue: 0.26),
-                                            Color(red: 0.36, green: 0.86, blue: 0.68),
-                                            Color(red: 0.26, green: 0.72, blue: 1.00)
-                                        ],
-                                        center: .center
-                                    ),
-                                    lineWidth: 1.8
-                                )
+                                .stroke(CFGradient.spectrumBorder, lineWidth: 1.8)
                         }
                         .shadow(color: CFCloudLayer.cardShadow.color, radius: 8, x: 0, y: 3)
                 }
@@ -254,14 +250,112 @@ struct SettingsView: View {
     }
 }
 
+private struct CFLanguagePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
+    @Binding var appLanguage: String
+
+    private let options: [(identifier: String, title: String)] = [
+        ("system", "Follow System"),
+        ("en", "English"),
+        ("ja", "日本語"),
+        ("ko", "한국어"),
+        ("zh-Hant-TW", "繁體中文（台灣）")
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                CFIconCircleButton(icon: .xmark, label: "Close language selection") {
+                    dismiss()
+                }
+
+                Spacer()
+
+                Text("Language")
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .foregroundStyle(CFColor.textPrimary)
+
+                Spacer()
+
+                Color.clear
+                    .frame(width: 48, height: 48)
+            }
+            .padding(.horizontal, CFTabScreenLayout.horizontalPadding)
+            .padding(.top, CFTabScreenLayout.headerTopPadding)
+            .padding(.bottom, CFTabScreenLayout.headerBottomPadding)
+
+            VStack(spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.element.identifier) { index, option in
+                    Button {
+                        appLanguage = option.identifier
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(CFLocalization.text(option.title, locale: locale))
+                                .font(CFFont.body)
+                                .foregroundStyle(CFColor.textPrimary)
+
+                            Spacer()
+
+                            if appLanguage == option.identifier {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(CFColor.accentTrial)
+                            }
+                        }
+                        .padding(.horizontal, CFSpacing.lg)
+                        .frame(minHeight: 56)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("language.option.\(option.identifier)")
+                    .accessibilityAddTraits(appLanguage == option.identifier ? .isSelected : [])
+
+                    if index < options.count - 1 {
+                        CFDividerInset()
+                    }
+                }
+            }
+            .background(CFColor.surfacePrimary)
+            .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous)
+                    .stroke(CFColor.borderSubtle, lineWidth: 0.8)
+            }
+            .cfShadow(CFCloudLayer.cardShadow)
+            .padding(.horizontal, CFTabScreenLayout.horizontalPadding)
+
+            Spacer()
+        }
+        .background(CFColor.backgroundPrimary)
+        .environment(\.locale, CFLocalization.locale(for: appLanguage))
+    }
+}
+
 private struct CFSettingsLinkRow: View {
+    @Environment(\.locale) private var locale
+    var icon: CFIcon?
     var title: String
     var action: () -> Void
 
+    init(icon: CFIcon? = nil, title: String, action: @escaping () -> Void) {
+        self.icon = icon
+        self.title = title
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack {
-                Text(title)
+            HStack(spacing: CFSpacing.md) {
+                if let icon {
+                    icon.image
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(CFColor.textPrimary)
+                        .frame(width: 20)
+                }
+
+                Text(CFLocalization.text(title, locale: locale))
                     .font(CFFont.body)
                     .foregroundStyle(CFColor.textPrimary)
 
@@ -276,74 +370,21 @@ private struct CFSettingsLinkRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(CFLocalization.text(title, locale: locale))
     }
 }
 
-enum CFLegalDocument: String, Identifiable {
+enum CFLegalDocument: String {
     case privacy
     case terms
 
-    var id: String { rawValue }
-
-    var title: String {
+    var url: URL {
         switch self {
         case .privacy:
-            "Privacy Policy"
+            URL(string: "https://humphreyy.notion.site/CatFocus-Privacy-Policy-3ef0bb08819f819c97b5f064a940495b")!
         case .terms:
-            "Terms of Use"
+            URL(string: "https://humphreyy.notion.site/CatFocus-Terms-of-Use-3ef0bb08819f813690e9cdfff3aba970")!
         }
-    }
-}
-
-struct CFLegalDocumentView: View {
-    @Environment(\.dismiss) private var dismiss
-    var document: CFLegalDocument
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: CFSpacing.lg) {
-                    Text(document.title)
-                        .font(CFFont.screenTitle)
-                        .foregroundStyle(CFColor.textPrimary)
-
-                    Text(document == .privacy ? privacyText : termsText)
-                        .font(CFFont.body)
-                        .foregroundStyle(CFColor.textSecondary)
-                        .lineSpacing(5)
-
-                    VStack(alignment: .leading, spacing: CFSpacing.sm) {
-                        Text("MARKETING WEBSITE")
-                            .font(CFFont.labelCaps)
-                            .foregroundStyle(CFColor.textTertiary)
-
-                        Text("The CatFocus website link will be added here.")
-                            .font(CFFont.body)
-                            .foregroundStyle(CFColor.textSecondary)
-                    }
-                    .padding(.top, CFSpacing.md)
-                }
-                .padding(.horizontal, CFTabScreenLayout.horizontalPadding)
-                .padding(.vertical, CFSpacing.xl)
-            }
-            .background(CFColor.backgroundPrimary)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-
-    private var privacyText: String {
-        "CatFocus stores your onboarding preferences, timer settings, and training records locally on your device for the MVP. We do not send this information to a server in the current build. If analytics, accounts, or cloud sync are added later, this policy will be updated before release."
-    }
-
-    private var termsText: String {
-        "CatFocus is a focus and habit companion. It is not medical advice, fitness diagnosis, or a substitute for professional care. You are responsible for choosing appropriate session settings and stopping if you feel unwell. Subscription terms, pricing, and billing will be provided through Apple before any production purchase flow is enabled."
     }
 }
 
@@ -439,6 +480,7 @@ struct CFAppleAccountRestoreSheet: View {
 }
 
 private struct CFSettingsToggleRow: View {
+    @Environment(\.locale) private var locale
     var icon: CFIcon?
     var title: String
     @Binding var isOn: Bool
@@ -459,7 +501,7 @@ private struct CFSettingsToggleRow: View {
                         .frame(width: 20)
                 }
 
-                Text(title)
+                Text(CFLocalization.text(title, locale: locale))
                     .font(CFFont.body)
                     .foregroundStyle(CFColor.textPrimary)
             }
@@ -468,17 +510,18 @@ private struct CFSettingsToggleRow: View {
         .tint(CFColor.surfaceSelected)
         .padding(.horizontal, CFSpacing.lg)
         .frame(height: 52)
-        .accessibilityLabel(title)
+        .accessibilityLabel(CFLocalization.text(title, locale: locale))
     }
 }
 
 private struct CFSettingsValueRow: View {
+    @Environment(\.locale) private var locale
     var title: String
     var value: String
 
     var body: some View {
         HStack {
-            Text(title)
+            Text(CFLocalization.text(title, locale: locale))
                 .font(CFFont.body)
                 .foregroundStyle(CFColor.textPrimary)
 

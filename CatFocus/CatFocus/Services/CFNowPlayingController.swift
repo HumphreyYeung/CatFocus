@@ -27,8 +27,8 @@ final class CFNowPlayingController {
 
         let center = MPNowPlayingInfoCenter.default()
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: "Focus with Luna",
-            MPMediaItemPropertyArtist: "CatFocus • White Noise",
+            MPMediaItemPropertyTitle: CFLocalization.text("Focus with Luna"),
+            MPMediaItemPropertyArtist: CFLocalization.text("CatFocus • White Noise"),
             MPMediaItemPropertyAlbumTitle: "CatFocus",
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,

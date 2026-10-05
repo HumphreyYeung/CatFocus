@@ -1,0 +1,47 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CatFocus"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CatFocus saves your focus cards and videos to Photos when you choose to save them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存を選ぶと、CatFocusが集中のカードや動画を写真に追加します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장을 선택하면 CatFocus가 집중 카드와 영상을 사진 앱에 추가해요."
+          }
+        },
+        "zh-Hant-TW" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當你選擇儲存時，CatFocus 會將專注卡片與影片加入「照片」。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

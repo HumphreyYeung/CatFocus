@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8F41EE7D307247D100A64CA9 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = CFA000000000000000000001 /* FirebaseAnalytics */; };
+		8F41EE7E307247D100A64CA9 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = CFA000000000000000000002 /* FirebaseMessaging */; };
+		8F41EE7F307247D100A64CA9 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = CFA000000000000000000003 /* FirebaseRemoteConfig */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		8F36E42F2FDE5FBD00227E9A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +58,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8F41EE7F307247D100A64CA9 /* FirebaseRemoteConfig in Frameworks */,
+				8F41EE7E307247D100A64CA9 /* FirebaseMessaging in Frameworks */,
+				8F41EE7D307247D100A64CA9 /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +121,9 @@
 			);
 			name = CatFocus;
 			packageProductDependencies = (
+				CFA000000000000000000001 /* FirebaseAnalytics */,
+				CFA000000000000000000002 /* FirebaseMessaging */,
+				CFA000000000000000000003 /* FirebaseRemoteConfig */,
 			);
 			productName = CatFocus;
 			productReference = 8F36E41F2FDE5FBD00227E9A /* CatFocus.app */;
@@ -175,6 +187,11 @@
 				TargetAttributes = {
 					8F36E41E2FDE5FBD00227E9A = {
 						CreatedOnToolsVersion = 16.4;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					8F36E42D2FDE5FBD00227E9A = {
 						CreatedOnToolsVersion = 16.4;
@@ -191,10 +208,16 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ja,
+				ko,
+				"zh-Hant-TW",
 				Base,
 			);
 			mainGroup = 8F36E4162FDE5FBC00227E9A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CFA000000000000000000000 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8F36E4202FDE5FBD00227E9A /* Products */;
 			projectDirPath = "";
@@ -393,6 +416,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CatFocus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3PCA35YJ2P;
@@ -427,6 +451,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CatFocus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3PCA35YJ2P;
@@ -564,6 +589,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CFA000000000000000000000 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 12.19.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CFA000000000000000000001 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CFA000000000000000000000 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		CFA000000000000000000002 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CFA000000000000000000000 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+		CFA000000000000000000003 /* FirebaseRemoteConfig */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CFA000000000000000000000 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseRemoteConfig;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8F36E4172FDE5FBC00227E9A /* Project object */;
 }

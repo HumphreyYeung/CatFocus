@@ -17,12 +17,14 @@ struct AppFlowView: View {
     @AppStorage("customFocusModeName") private var customFocusModeName = ""
     @AppStorage("onboardingName") private var onboardingName = ""
     @AppStorage("onboardingGoalID") private var onboardingGoalID = ""
+    @AppStorage("onboardingReminderTimeID") private var onboardingReminderTimeID = ""
+    @AppStorage("hasStartedFocusSession") private var hasStartedFocusSession = false
     @AppStorage(TrainingRecordsStore.storageKey) private var trainingRecordsData = Data()
     @AppStorage(PostcardProgressStore.storageKey) private var postcardProgressData = Data()
     @State private var isPresetPresented = false
     @State private var isShareCardPresented = false
     @State private var paywallRequest: CFPaywallRequest?
-    @State private var selectedPlan: OnboardingPlan = .weekly
+    @State private var selectedPlan: OnboardingPlan = .annual
     @State private var shouldRestorePresetAfterPaywall = false
     @State private var debugOnboardingRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_ONBOARDING")
     @State private var debugPretrainRequested = ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PRETRAIN")
@@ -63,7 +65,18 @@ struct AppFlowView: View {
                         handleTrainingOutcome(outcome)
                     },
                     onFailure: { outcome in
+                        CFAnalytics.log(.focusSessionEndedEarly(
+                            plannedDurationMinutes: outcome.plannedMinutes,
+                            elapsedSeconds: max(0, Int(outcome.elapsedSeconds))
+                        ))
                         handleTrainingOutcome(outcome)
+                    },
+                    onStarted: { durationMinutes in
+                        CFAnalytics.log(.focusSessionStarted(
+                            durationMinutes: durationMinutes,
+                            isFirstSession: !hasStartedFocusSession && trainingRecords.isEmpty
+                        ))
+                        hasStartedFocusSession = true
                     }
                 )
             } else if case .result(let result, _, let poseID, let focusModeTitle) = route {
@@ -244,6 +257,7 @@ struct AppFlowView: View {
             }
             #endif
             synchronizePostcardProgress()
+            scheduleDailyReminder()
             consumePendingPostcardPresentation()
             presentUnreadPostcardIfAppropriate()
         }
@@ -260,11 +274,18 @@ struct AppFlowView: View {
             guard newPhase == .active else { return }
             releaseIdleAudioSessionIfNeeded()
             synchronizePostcardProgress()
+            scheduleDailyReminder()
             consumePendingPostcardPresentation()
             presentUnreadPostcardIfAppropriate()
         }
         .onReceive(NotificationCenter.default.publisher(for: CFPostcardNotificationCenter.didTapNotification)) { notification in
             handlePostcardNotification(notification.object as? String)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CFRemoteConfigService.didRefreshNotification)) { _ in
+            scheduleDailyReminder()
+            Task {
+                await CFPostcardNotificationScheduler.schedule(postcardProgress.pendingPostcard)
+            }
         }
         #if DEBUG
         .onAppear {
@@ -384,7 +405,7 @@ struct AppFlowView: View {
 
     private var displayName: String {
         let trimmedName = onboardingName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? "Human Friend" : trimmedName
+        return trimmedName.isEmpty ? CFLocalization.text("Human Friend") : trimmedName
     }
 
     private var onboardingGoalTitle: String? {
@@ -408,8 +429,15 @@ struct AppFlowView: View {
     }
 
     private func handleTrainingOutcome(_ outcome: TrainingSessionOutcome) {
+        if outcome.state == .success {
+            CFAnalytics.log(.focusSessionCompleted(
+                plannedDurationMinutes: outcome.plannedMinutes,
+                actualDurationSeconds: max(0, Int(outcome.elapsedSeconds))
+            ))
+        }
         let record = TrainingSessionRecord(outcome: outcome)
         trainingRecordsData = TrainingRecordsStore.append(record, to: trainingRecordsData)
+        scheduleDailyReminder()
         let previousDeliveredPostcardIDs = postcardProgress.deliveredPostcardIDs
         let updatedPostcardProgress = PostcardProgressEngine.record(
             record,
@@ -527,6 +555,21 @@ struct AppFlowView: View {
 
         Task {
             await CFPostcardNotificationScheduler.schedule(updated.pendingPostcard)
+        }
+    }
+
+    private func scheduleDailyReminder() {
+        if UserDefaults.standard.object(forKey: "catfocus.dailyReminder.enabled") == nil,
+           !onboardingReminderTimeID.isEmpty {
+            CFDailyReminderScheduler.setDefaultPreference(for: onboardingReminderTimeID)
+        }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let hasCompletedToday = trainingRecords.contains {
+            $0.result == .success && calendar.startOfDay(for: $0.date) == today
+        }
+        Task {
+            await CFDailyReminderScheduler.schedule(hasCompletedToday: hasCompletedToday)
         }
     }
 

@@ -16,6 +16,7 @@ struct TrainingView: View {
     var healthState: CatHealthState = .sleeping
     var onSuccess: (TrainingSessionOutcome) -> Void
     var onFailure: (TrainingSessionOutcome) -> Void
+    var onStarted: (Int) -> Void = { _ in }
     var hasPremiumAccess: Bool = false
 
     @State private var previewAsset: CFCatAsset = .staticImage(name: "luna-focus")
@@ -29,7 +30,7 @@ struct TrainingView: View {
     @State private var areControlsVisible = true
     @State private var isInteractingWithControl = false
     @State private var controlsVisibilityResetID = UUID()
-    @StateObject private var audioPlayer = CFWhiteNoisePlayer()
+    @StateObject private var audioPlayer = CFWhiteNoisePlayer(debugName: "training")
     @State private var hasEntered = false
 
     init(
@@ -45,7 +46,8 @@ struct TrainingView: View {
         healthState: CatHealthState = .sleeping,
         hasPremiumAccess: Bool = false,
         onSuccess: @escaping (TrainingSessionOutcome) -> Void,
-        onFailure: @escaping (TrainingSessionOutcome) -> Void
+        onFailure: @escaping (TrainingSessionOutcome) -> Void,
+        onStarted: @escaping (Int) -> Void = { _ in }
     ) {
         self._selectedDurationMinutes = selectedDurationMinutes
         self._shortBreakMinutes = shortBreakMinutes
@@ -60,6 +62,7 @@ struct TrainingView: View {
         self.hasPremiumAccess = hasPremiumAccess
         self.onSuccess = onSuccess
         self.onFailure = onFailure
+        self.onStarted = onStarted
         _sessionDurationMinutes = State(initialValue: max(1, selectedDurationMinutes.wrappedValue))
         _presentedPresetSection = State(initialValue: nil)
     }
@@ -127,6 +130,9 @@ struct TrainingView: View {
             startSelectedWhiteNoiseIfNeeded()
         }
         .onChange(of: presentedPresetSection) { _, section in
+            #if DEBUG
+            print("[CFAudioFlow] training preset sheet changed -> \(section?.rawValue ?? "closed")")
+            #endif
             if section == nil {
                 startSelectedWhiteNoiseIfNeeded()
                 revealControls()
@@ -376,6 +382,7 @@ struct TrainingView: View {
 
         hasStartedSession = true
         elapsedSeconds = 0
+        onStarted(sessionDurationMinutes)
         resumeSession()
     }
 
@@ -442,6 +449,9 @@ struct TrainingView: View {
     }
 
     private func startSelectedWhiteNoiseIfNeeded() {
+        #if DEBUG
+        print("[CFAudioFlow] training BGM reconcile | scene=\(scenePhase) sheet=\(presentedPresetSection?.rawValue ?? "closed") enabled=\(whiteNoiseEnabled) selected=\(selectedWhiteNoiseID)")
+        #endif
         guard scenePhase == .active else { return }
         guard presentedPresetSection == nil else { return }
         guard whiteNoiseEnabled else {

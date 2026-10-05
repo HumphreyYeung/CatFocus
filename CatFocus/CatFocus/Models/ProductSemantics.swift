@@ -20,7 +20,7 @@ final class CFEntitlementStore: ObservableObject {
         }
 
         hasPremiumAccess = defaults.bool(forKey: Self.accessKey)
-        selectedPlan = OnboardingPlan(rawValue: defaults.string(forKey: Self.selectedPlanKey) ?? "") ?? .weekly
+        selectedPlan = OnboardingPlan(rawValue: defaults.string(forKey: Self.selectedPlanKey) ?? "") ?? .annual
 
         if arguments.contains("UITEST_PREMIUM") {
             hasPremiumAccess = true
@@ -55,6 +55,10 @@ enum PresetSound: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 
     var title: String {
+        CFLocalization.text(titleKey)
+    }
+
+    private var titleKey: String {
         switch self {
         case .none: "None"
         case .purring: "Purring"
@@ -119,6 +123,10 @@ enum TrainingPose: String, CaseIterable, Identifiable, Sendable, Hashable {
     var id: String { rawValue }
 
     var title: String {
+        CFLocalization.text(titleKey)
+    }
+
+    private var titleKey: String {
         switch self {
         case .resting:
             "Resting"
@@ -506,15 +514,15 @@ enum CatBubbleCatalog {
 
     static func messages(for context: CatBubbleContext) -> [String] {
         if context.moment == .home {
-            return homeMessages[context.health] ?? [fallbackMessage]
+            return (homeMessages[context.health] ?? [fallbackMessage]).map(CFLocalization.text)
         }
 
         if let pose = context.pose,
            let poseMessage = poseMessages[pose]?[context.moment] {
-            return poseMessage
+            return poseMessage.map(CFLocalization.text)
         }
 
-        return [momentMessages[context.moment] ?? fallbackMessage]
+        return [CFLocalization.text(momentMessages[context.moment] ?? fallbackMessage)]
     }
 
     static func alternateMessages(for context: CatBubbleContext) -> [String] {
@@ -530,6 +538,10 @@ enum HealthStatus: String, Equatable, Sendable {
     case peakForm = "PEAK FORM"
 
     var displayLabel: String {
+        CFLocalization.text(displayLabelKey)
+    }
+
+    private var displayLabelKey: String {
         switch self {
         case .lowEnergy, .needsTraining:
             "LOW"

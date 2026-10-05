@@ -237,11 +237,11 @@ private struct CFHealthRuleRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(CFLocalization.text(title))
                     .font(CFFont.body.weight(.semibold))
                     .foregroundStyle(CFColor.textPrimary)
 
-                Text(detail)
+                Text(CFLocalization.text(detail))
                     .font(CFFont.bodySmall)
                     .foregroundStyle(CFColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -344,7 +344,7 @@ private struct CFBottomTabItem: View {
                     .frame(width: 20, height: 20)
 
                 if !isFloating {
-                    Text(tab.rawValue)
+                    Text(CFLocalization.text(tab.rawValue))
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                 }
             }
@@ -356,7 +356,7 @@ private struct CFBottomTabItem: View {
             .animation(reduceMotion ? nil : CFMotionCurve.instantFeedback, value: isSelected)
         }
         .buttonStyle(CFPressableStyle())
-        .accessibilityLabel("\(tab.rawValue) tab")
+        .accessibilityLabel(CFLocalization.format("%@ tab", CFLocalization.text(tab.rawValue)))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

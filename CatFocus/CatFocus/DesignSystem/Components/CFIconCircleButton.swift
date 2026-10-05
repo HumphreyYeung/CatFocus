@@ -15,7 +15,7 @@ struct CFIconCircleButton: View {
                 .clipShape(Circle())
         }
         .buttonStyle(CFPressableStyle())
-        .accessibilityLabel(label)
+        .accessibilityLabel(CFLocalization.text(label))
     }
 }
 
