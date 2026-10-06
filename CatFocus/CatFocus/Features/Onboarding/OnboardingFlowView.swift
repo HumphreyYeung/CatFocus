@@ -19,7 +19,12 @@ struct OnboardingFlowView: View {
     @State private var userName = ""
     @State private var selectedProblem: OnboardingChoice?
     @State private var selectedGoal: OnboardingChoice?
-    @State private var selectedReminderTime: OnboardingReminderTime?
+    @State private var selectedReminderTime: Date = Calendar.current.date(
+        bySettingHour: 12,
+        minute: 0,
+        second: 0,
+        of: .now
+    ) ?? .now
     @State private var didLogOnboardingStart = false
 
     @AppStorage("onboardingName") private var savedName = ""
@@ -147,16 +152,10 @@ struct OnboardingFlowView: View {
 
     private var pageIdentity: String {
         switch step {
-        case .name:
-            "name"
+        case .greetingOne, .greetingTwo, .greetingThree, .name:
+            "welcome"
         case .problems, .goal:
             "form"
-        case .greetingOne:
-            "greeting-one"
-        case .greetingTwo:
-            "greeting-two"
-        case .greetingThree:
-            "greeting-three"
         case .suggestion:
             "suggestion"
         case .trial:
@@ -266,7 +265,7 @@ struct OnboardingFlowView: View {
         savedName = displayName
         savedProblemID = selectedProblem?.id ?? ""
         savedGoalID = selectedGoal?.id ?? ""
-        savedReminderTimeID = selectedReminderTime?.rawValue ?? ""
+        savedReminderTimeID = "custom"
         onFinish()
     }
 
@@ -274,10 +273,12 @@ struct OnboardingFlowView: View {
         savedName = displayName
         savedProblemID = selectedProblem?.id ?? ""
         savedGoalID = selectedGoal?.id ?? ""
-        savedReminderTimeID = selectedReminderTime?.rawValue ?? ""
-        if let selectedReminderTime {
-            CFDailyReminderScheduler.setDefaultPreference(for: selectedReminderTime.rawValue)
-        }
+        savedReminderTimeID = "custom"
+        let components = Calendar.current.dateComponents([.hour, .minute], from: selectedReminderTime)
+        CFDailyReminderScheduler.setPreference(
+            hour: components.hour ?? 12,
+            minute: components.minute ?? 0
+        )
 
         Task { @MainActor in
             let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
@@ -337,24 +338,6 @@ private enum OnboardingStep: Hashable {
         case .contract: 7
         case .notifications: 8
         default: 0
-        }
-    }
-}
-
-private enum OnboardingReminderTime: String, CaseIterable, Identifiable {
-    case morning
-    case midday
-    case afternoon
-    case evening
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .morning: "Morning · 8:00 AM"
-        case .midday: "Midday · 12:30 PM"
-        case .afternoon: "Afternoon · 3:00 PM"
-        case .evening: "Evening · 7:00 PM"
         }
     }
 }
@@ -429,7 +412,8 @@ private struct OnboardingStoryScene: View {
                 .contentShape(Rectangle())
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OnboardingStoryButtonStyle())
+        .transition(.identity)
         .ignoresSafeArea()
         .accessibilityLabel("Tap to continue")
         .onAppear {
@@ -441,6 +425,12 @@ private struct OnboardingStoryScene: View {
                 bubbleAppeared = true
             }
         }
+    }
+}
+
+private struct OnboardingStoryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
 
@@ -467,7 +457,7 @@ private struct OnboardingStoryCTA: View {
             .foregroundStyle(CFColor.textInverse.opacity(0.92))
             .frame(maxWidth: .infinity, minHeight: 58)
             .background(Color.black.opacity(0.42))
-            .scaleEffect(isBreathing && !reduceMotion ? 1.025 : 1)
+            .scaleEffect(isBreathing && !reduceMotion ? 1.07 : 1)
             .opacity(isBreathing && !reduceMotion ? 0.88 : 1)
             .animation(
                 reduceMotion ? .linear(duration: 0.01) : .easeInOut(duration: 1.25).repeatForever(autoreverses: true),
@@ -716,13 +706,12 @@ private struct OnboardingCatMessageScreen: View {
 }
 
 private struct OnboardingReminderScreen: View {
-    @Binding var selectedTime: OnboardingReminderTime?
+    @Binding var selectedTime: Date
     var onConfirm: () -> Void
 
     var body: some View {
         OnboardingPlainScaffold(
-            actionTitle: selectedTime == nil ? "Choose a Time" : "Let Luna Remind Me",
-            isActionDisabled: selectedTime == nil,
+            actionTitle: "Let Luna Remind Me",
             onAction: onConfirm
         ) {
             Spacer(minLength: 76)
@@ -738,43 +727,19 @@ private struct OnboardingReminderScreen: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                VStack(spacing: CFSpacing.md) {
-                    ForEach(OnboardingReminderTime.allCases) { time in
-                        Button {
-                            withAnimation(.easeOut(duration: 0.18)) {
-                                selectedTime = time
-                            }
-                        } label: {
-                            HStack(spacing: CFSpacing.md) {
-                                Text(CFLocalization.text(time.title))
-                                    .font(.system(
-                                        size: 15,
-                                        weight: selectedTime == time ? .bold : .semibold,
-                                        design: .rounded
-                                    ))
-                                    .tracking(0.3)
-                                    .foregroundStyle(CFCloudLayer.graphite)
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, CFSpacing.lg)
-                            .frame(maxWidth: .infinity, minHeight: 66)
-                            .background(CFColor.surfacePrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: CFRadius.tile, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: CFRadius.tile, style: .continuous)
-                                    .stroke(
-                                        selectedTime == time ? CFCloudLayer.graphite : CFColor.borderSubtle,
-                                        lineWidth: selectedTime == time ? 1.8 : 0.8
-                                    )
-                            }
-                            .cfShadow(selectedTime == time ? CFCloudLayer.selectionStrongShadow : CFCloudLayer.cardShadow)
-                        }
-                        .buttonStyle(OnboardingPressButtonStyle())
-                        .accessibilityLabel(CFLocalization.text(time.title))
-                        .accessibilityAddTraits(selectedTime == time ? .isSelected : [])
-                    }
-                }
+                DatePicker(
+                    CFLocalization.text("Choose a Time"),
+                    selection: $selectedTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .environment(\.locale, Locale.autoupdatingCurrent)
+                .frame(maxWidth: .infinity)
+                .frame(height: 190)
+                .clipped()
+                .padding(.top, CFSpacing.xxl)
+                .accessibilityLabel(CFLocalization.text("Choose a Time"))
             }
             .padding(.horizontal, CFButtonLayout.primaryHorizontalInset - 32)
 
@@ -1183,20 +1148,33 @@ private struct OnboardingSignatureCanvas: UIViewRepresentable {
     }
 
     func updateUIView(_ canvasView: PKCanvasView, context: Context) {
-        if canvasView.drawing != drawing {
-            canvasView.drawing = drawing
-        }
+        context.coordinator.setDrawing(drawing, on: canvasView)
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         private var drawing: Binding<PKDrawing>
+        private var isApplyingSwiftUIDrawing = false
 
         init(drawing: Binding<PKDrawing>) {
             self.drawing = drawing
         }
 
+        func setDrawing(_ drawing: PKDrawing, on canvasView: PKCanvasView) {
+            guard canvasView.drawing != drawing else { return }
+
+            isApplyingSwiftUIDrawing = true
+            defer { isApplyingSwiftUIDrawing = false }
+            canvasView.drawing = drawing
+        }
+
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            drawing.wrappedValue = canvasView.drawing
+            guard !isApplyingSwiftUIDrawing else { return }
+
+            let updatedDrawing = canvasView.drawing
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.drawing.wrappedValue != updatedDrawing else { return }
+                self.drawing.wrappedValue = updatedDrawing
+            }
         }
     }
 }

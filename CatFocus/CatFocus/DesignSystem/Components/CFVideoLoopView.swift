@@ -148,10 +148,14 @@ private final class CFVideoLoopModel: ObservableObject {
             object: item,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.hasRenderedFirstFrame else { return }
-            self.player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self, self.hasRenderedFirstFrame else { return }
-                self.player?.play()
+                self.player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.hasRenderedFirstFrame else { return }
+                        self.player?.play()
+                    }
+                }
             }
         }
         statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in

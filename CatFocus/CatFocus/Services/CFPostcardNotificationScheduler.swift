@@ -47,10 +47,26 @@ enum CFDailyReminderScheduler {
     private static let requestID = "catfocus.daily-reminder"
 
     static func setDefaultPreference(for reminderTimeID: String) {
-        guard let time = ReminderTime(rawValue: reminderTimeID) else { return }
-        UserDefaults.standard.set(true, forKey: Preference.enabledKey)
-        UserDefaults.standard.set(time.hour, forKey: Preference.hourKey)
-        UserDefaults.standard.set(time.minute, forKey: Preference.minuteKey)
+        let defaults = UserDefaults.standard
+        guard let time = ReminderTime(rawValue: reminderTimeID) else {
+            guard reminderTimeID == "custom" else { return }
+            if defaults.object(forKey: Preference.hourKey) == nil {
+                defaults.set(12, forKey: Preference.hourKey)
+            }
+            if defaults.object(forKey: Preference.minuteKey) == nil {
+                defaults.set(0, forKey: Preference.minuteKey)
+            }
+            defaults.set(true, forKey: Preference.enabledKey)
+            return
+        }
+        setPreference(hour: time.hour, minute: time.minute)
+    }
+
+    static func setPreference(hour: Int, minute: Int) {
+        let defaults = UserDefaults.standard
+        defaults.set(true, forKey: Preference.enabledKey)
+        defaults.set(min(max(hour, 0), 23), forKey: Preference.hourKey)
+        defaults.set(min(max(minute, 0), 59), forKey: Preference.minuteKey)
     }
 
     static func schedule(hasCompletedToday: Bool) async {

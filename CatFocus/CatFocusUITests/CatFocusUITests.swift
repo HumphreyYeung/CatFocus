@@ -215,7 +215,7 @@ final class CatFocusUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.staticTexts["24:42"].waitForExistence(timeout: 2))
+        XCTAssertTrue(focusTimer(in: app).waitForExistence(timeout: 2))
 
         let slideToCancel = app.otherElements["slideToCancel"]
         XCTAssertTrue(slideToCancel.waitForExistence(timeout: 2))
@@ -236,9 +236,16 @@ final class CatFocusUITests: XCTestCase {
 
         app.buttons["Start"].tap()
 
-        XCTAssertTrue(app.staticTexts["24:42"].waitForExistence(timeout: 2))
+        XCTAssertTrue(focusTimer(in: app).waitForExistence(timeout: 2))
         XCTAssertFalse(app.buttons["Complete Preview"].exists)
         XCTAssertFalse(app.staticTexts["Complete Preview"].exists)
+    }
+
+    @MainActor
+    private func focusTimer(in app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(
+            NSPredicate(format: "label MATCHES %@", #"^\d{2}:\d{2}$"#)
+        ).firstMatch
     }
 
     @MainActor

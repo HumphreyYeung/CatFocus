@@ -215,7 +215,7 @@ struct CFTrainingResultView: View {
                     points: state.points(durationMinutes: durationMinutes).value
                 )
                 #if DEBUG
-                try? CFShareVideoComposer.retainDebugCopy(url)
+                _ = try? CFShareVideoComposer.retainDebugCopy(url)
                 if ProcessInfo.processInfo.arguments.contains("UITEST_SKIP_PHOTOS_SAVE") {
                     try? FileManager.default.removeItem(at: url)
                     await MainActor.run {

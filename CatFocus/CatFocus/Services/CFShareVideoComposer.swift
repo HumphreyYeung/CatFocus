@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import SwiftUI
 import UIKit
 import Photos
@@ -48,10 +48,11 @@ enum CFShareVideoComposer {
 
         let frameRate: Int32 = 30
         let frameCount = Int(duration * Double(frameRate))
+        let sourceVideoReader = await videoReader(for: source)
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue(label: "com.catfocus.share-video", qos: .userInitiated).async {
-                let videoReader = videoReader(for: source)
+                let videoReader = sourceVideoReader
                 let fallbackImage = fallbackImage(for: source) ?? UIImage(named: "luna-success")
 
                 for frameIndex in 0..<frameCount {
@@ -94,13 +95,13 @@ enum CFShareVideoComposer {
         }
     }
 
-    private static func videoReader(for source: CFCatAsset) -> CFVideoFrameReader? {
+    private static func videoReader(for source: CFCatAsset) async -> CFVideoFrameReader? {
         guard case .video(let name, _) = source,
               let url = Bundle.main.url(forResource: name, withExtension: "mp4") else {
             return nil
         }
 
-        return try? CFVideoFrameReader(url: url)
+        return try? await CFVideoFrameReader(url: url)
     }
 
     private static func fallbackImage(for source: CFCatAsset) -> UIImage? {
@@ -324,15 +325,22 @@ enum CFShareVideoComposer {
     }
 }
 
-private final class CFVideoFrameReader {
-    private let url: URL
+// The reader is handed to the serial share-video queue and accessed only there.
+private final class CFVideoFrameReader: @unchecked Sendable {
+    private let asset: AVURLAsset
+    private let track: AVAssetTrack
     private let context = CIContext()
     private var reader: AVAssetReader
     private var output: AVAssetReaderTrackOutput
 
-    init(url: URL) throws {
-        self.url = url
-        let setup = try Self.makeReader(url: url)
+    init(url: URL) async throws {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else {
+            throw CFShareVideoError.exportFailed
+        }
+        self.asset = asset
+        self.track = track
+        let setup = try Self.makeReader(asset: asset, track: track)
         reader = setup.reader
         output = setup.output
     }
@@ -344,7 +352,7 @@ private final class CFVideoFrameReader {
             return context.createCGImage(ciImage, from: ciImage.extent)
         }
 
-        guard let setup = try? Self.makeReader(url: url) else { return nil }
+        guard let setup = try? Self.makeReader(asset: asset, track: track) else { return nil }
         reader = setup.reader
         output = setup.output
         guard let sample = output.copyNextSampleBuffer(),
@@ -353,12 +361,7 @@ private final class CFVideoFrameReader {
         return context.createCGImage(ciImage, from: ciImage.extent)
     }
 
-    private static func makeReader(url: URL) throws -> (reader: AVAssetReader, output: AVAssetReaderTrackOutput) {
-        let asset = AVURLAsset(url: url)
-        guard let track = asset.tracks(withMediaType: .video).first else {
-            throw CFShareVideoError.exportFailed
-        }
-
+    private static func makeReader(asset: AVURLAsset, track: AVAssetTrack) throws -> (reader: AVAssetReader, output: AVAssetReaderTrackOutput) {
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(
             track: track,

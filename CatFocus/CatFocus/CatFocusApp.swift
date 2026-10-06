@@ -31,9 +31,12 @@ final class CFOrientationCoordinator {
 
         if #available(iOS 16.0, *) {
             windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: supportedOrientations))
+            windowScene.windows
+                .first(where: \.isKeyWindow)?
+                .rootViewController?
+                .setNeedsUpdateOfSupportedInterfaceOrientations()
         }
 
-        UIViewController.attemptRotationToDeviceOrientation()
     }
 }
 
