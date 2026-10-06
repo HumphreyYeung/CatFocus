@@ -1422,6 +1422,15 @@
       },
       "extractionState": "manual"
     },
+    "Activity Heatmap": {
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "アクティビティヒートマップ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "활동 히트맵" } },
+        "zh-Hant-TW": { "stringUnit": { "state": "translated", "value": "活動熱力圖" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Activity Heatmap" } }
+      },
+      "extractionState": "manual"
+    },
     "App Language": {
       "localizations": {
         "ja": { "stringUnit": { "state": "translated", "value": "アプリの言語" } },

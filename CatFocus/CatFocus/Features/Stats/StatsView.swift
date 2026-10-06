@@ -5,8 +5,6 @@ struct StatsView: View {
     var records: [TrainingSessionRecord] = []
     var onShare: () -> Void = {}
     var onTabSelected: (CFAppTab) -> Void = { _ in }
-    @State private var activityRange: CFStatsActivityRange = .weekly
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,45 +58,15 @@ struct StatsView: View {
 
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: CFSpacing.lg) {
-            HStack(spacing: CFSpacing.md) {
-                Text("Activity")
-                    .font(CFFont.cardTitle)
-                    .foregroundStyle(CFColor.textPrimary)
+            Text("Activity Heatmap")
+                .font(CFFont.cardTitle)
+                .foregroundStyle(CFColor.textPrimary)
 
-                Spacer()
-
-                CFStatsRangePicker(selection: $activityRange)
-            }
-
-            Group {
-                switch activityRange {
-                case .weekly:
-                    CFWeeklyActivityChart(days: weeklyActivity)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 1.02, anchor: .top))
-                        ))
-                case .monthly:
-                    CFMonthlyActivityHeatmap(
-                        title: monthlyActivityTitle,
-                        cells: monthlyActivityCells
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 1.02, anchor: .top))
-                    ))
-                }
-            }
+            CFMonthlyActivityHeatmap(
+                title: monthlyActivityTitle,
+                cells: monthlyActivityCells
+            )
         }
-        .animation(
-            reduceMotion ? nil : .interpolatingSpring(
-                mass: 1.0,
-                stiffness: 270,
-                damping: 32,
-                initialVelocity: 0
-            ),
-            value: activityRange
-        )
     }
 
     private var recentSection: some View {
@@ -155,28 +123,6 @@ struct StatsView: View {
     private var averageFocusTimeText: String {
         guard completedSessionCount > 0 else { return CFLocalization.duration(minutes: 0) }
         return formattedDuration(Int((Double(totalCompletedMinutes) / Double(completedSessionCount)).rounded()))
-    }
-
-    private var weeklyActivity: [CFActivityDay] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let dailyMinutes = (-6...0).map { offset -> Int in
-            let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
-            return records
-                .filter { $0.result == .success && calendar.isDate($0.date, inSameDayAs: date) }
-                .reduce(0) { $0 + durationMinutes(for: $1) }
-        }
-        let chartMaximum = max(60, dailyMinutes.max() ?? 0)
-
-        return (-6...0).enumerated().map { index, offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
-            let minutes = dailyMinutes[index]
-            return CFActivityDay(
-                label: date.formatted(.dateTime.weekday(.abbreviated).locale(CFLocalization.locale)),
-                value: min(1, CGFloat(minutes) / CGFloat(chartMaximum)),
-                durationMinutes: minutes
-            )
-        }
     }
 
     private var monthlyActivityTitle: String {
@@ -263,55 +209,6 @@ struct StatsView: View {
     }
 }
 
-private enum CFStatsActivityRange: String, CaseIterable, Identifiable {
-    case weekly = "Weekly"
-    case monthly = "Monthly"
-
-    var id: Self { self }
-}
-
-private struct CFStatsRangePicker: View {
-    @Binding var selection: CFStatsActivityRange
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(CFStatsActivityRange.allCases) { range in
-                Button {
-                    if reduceMotion {
-                        selection = range
-                    } else {
-                        withAnimation(.interpolatingSpring(
-                            mass: 1.0,
-                            stiffness: 270,
-                            damping: 32,
-                            initialVelocity: 0
-                        )) {
-                            selection = range
-                        }
-                    }
-                } label: {
-                    Text(CFLocalization.text(range.rawValue))
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(selection == range ? CFColor.textInverse : CFColor.textSecondary)
-                        .padding(.horizontal, CFSpacing.md)
-                        .frame(height: 32)
-                        .background(selection == range ? CFColor.surfaceSelected : Color.clear)
-                        .clipShape(Capsule())
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(CFPressableStyle())
-                .accessibilityAddTraits(selection == range ? .isSelected : [])
-            }
-        }
-        .padding(3)
-        .background(CFColor.surfaceSoft)
-        .clipShape(Capsule())
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Activity range")
-    }
-}
-
 private struct CFMetricCard: View {
     var label: String
     var value: String
@@ -382,69 +279,15 @@ private struct CFMetricStatusLabel: View {
     }
 }
 
-private struct CFWeeklyActivityChart: View {
-    var days: [CFActivityDay]
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: CFSpacing.sm) {
-            ForEach(days) { day in
-                VStack(spacing: CFSpacing.sm) {
-                    CFAnimatedNumber(
-                        value: day.durationText,
-                        font: CFFont.caption,
-                        color: day.durationMinutes > 0 ? CFColor.textPrimary : CFColor.textTertiary
-                    )
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .frame(height: 16)
-
-                    ZStack(alignment: .bottom) {
-                        Capsule()
-                            .fill(CFColor.surfaceSoft)
-                            .frame(width: 34, height: 112)
-
-                        Capsule()
-                            .fill(CFActivityVisuals.fillColor(for: day.durationMinutes))
-                            .frame(width: 34, height: max(16, 112 * day.value))
-                    }
-
-                    Text(day.label)
-                        .font(CFFont.caption)
-                        .foregroundStyle(CFColor.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(20)
-        .background(CFColor.surfacePrimary)
-        .clipShape(RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CFRadius.largeCard, style: .continuous)
-                .stroke(CFColor.borderSubtle, lineWidth: 0.8)
-        }
-        .cfShadow(CFCloudLayer.cardShadow)
-    }
-}
-
 private struct CFMonthlyActivityHeatmap: View {
     var title: String
     var cells: [CFMonthlyActivityDay?]
 
     var body: some View {
         VStack(alignment: .leading, spacing: CFSpacing.lg) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Heatmap")
-                        .font(CFFont.cardTitle)
-                        .foregroundStyle(CFColor.textPrimary)
-
-                    Text(title)
-                        .font(CFFont.bodySmall)
-                        .foregroundStyle(CFColor.textTertiary)
-                }
-
-                Spacer(minLength: 0)
-            }
+            Text(title)
+                .font(CFFont.bodySmall)
+                .foregroundStyle(CFColor.textTertiary)
 
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: CFSpacing.xs), count: 7),
@@ -587,17 +430,6 @@ private struct CFSessionRow: View {
                 .stroke(CFColor.borderSubtle, lineWidth: 0.8)
         }
         .cfShadow(CFCloudLayer.cardShadow)
-    }
-}
-
-private struct CFActivityDay: Identifiable {
-    let id = UUID()
-    var label: String
-    var value: CGFloat
-    var durationMinutes: Int
-
-    var durationText: String {
-        CFLocalization.duration(minutes: durationMinutes, compact: true)
     }
 }
 

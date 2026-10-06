@@ -80,7 +80,7 @@ struct MyCatView: View {
 
     private var collectionUnlockView: some View {
         ZStack(alignment: .bottom) {
-            Image("CollectionUnlock")
+            CFPostcardArtwork.image(baseName: "CollectionUnlock")
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)

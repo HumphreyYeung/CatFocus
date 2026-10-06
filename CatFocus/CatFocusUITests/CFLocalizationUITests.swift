@@ -38,8 +38,13 @@ final class CFLocalizationUITests: XCTestCase {
             app.buttons[closeLabels[item.language]!].tap()
 
             app.buttons[item.statsTab].tap()
-            let activity = ["en": "Activity", "ja": "アクティビティ", "ko": "활동", "zh-Hant-TW": "活動"]
-            XCTAssertTrue(app.staticTexts[activity[item.language]!].waitForExistence(timeout: 5), item.language)
+            let activityHeatmap = [
+                "en": "Activity Heatmap",
+                "ja": "アクティビティヒートマップ",
+                "ko": "활동 히트맵",
+                "zh-Hant-TW": "活動熱力圖"
+            ]
+            XCTAssertTrue(app.staticTexts[activityHeatmap[item.language]!].waitForExistence(timeout: 5), item.language)
             capture(app, "\(item.language)-stats")
 
             app.buttons[item.collectionTab].tap()
